@@ -627,3 +627,56 @@ html.fs-lock { overflow: hidden; }
 .timer.urgent .timer-text { color: var(--bad); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .timer.urgent .timer-fill { background: var(--bad); }
 .timer-opt { margin-top: 0.25rem; }
+
+/* ---- CR-17: report a wrong answer (SCHEMA 4.28) and the review page ---- */
+.report { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--panel-2); }
+.report-btn { font-size: 0.95rem; }
+.report-form { margin: 0.75rem 0 0; padding: 0.75rem; background: var(--panel-2); border: 2px solid var(--border); border-radius: var(--radius); }
+.report-form .field { margin-bottom: 0.6rem; }
+.report-form .field label { display: block; font-weight: 600; margin-bottom: 0.2rem; }
+.report-note { margin: 0 0 0.25rem; }
+.report-status { margin: 0.5rem 0 0; min-height: 1.5em; color: var(--muted); }
+.report-status.error { color: var(--bad); font-weight: 600; }
+.report-status:focus { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+textarea, select, .review-tools input[type="search"] {
+  font: inherit;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  background: #0d1017;
+  color: var(--text);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+}
+textarea { resize: vertical; min-height: 5.5rem; }
+textarea:focus-visible, select:focus-visible, .review-tools input[type="search"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+input[aria-invalid="true"] { border-color: var(--bad); }
+
+.review-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0.6rem; margin: 0.75rem 0; }
+.review-tools label { display: block; font-weight: 600; margin-bottom: 0.2rem; }
+.review-summary { margin: 0.25rem 0 0.75rem; }
+.review-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+.review-card { background: var(--panel-2); border: 2px solid var(--border); border-radius: var(--radius); padding: 0.75rem; min-width: 0; overflow-wrap: anywhere; }
+.review-card[data-status="accepted"] { border-color: var(--ok); }
+.review-card[data-status="rejected"] { border-color: var(--bad); }
+.review-card[data-status="unsure"] { border-color: var(--focus); }
+.review-card h3 { margin: 0 0 0.25rem; }
+.review-card .when { color: var(--muted); font-size: 0.875rem; margin: 0 0 0.5rem; }
+.review-card dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.2rem 0.75rem; margin: 0 0 0.6rem; }
+.review-card dt { color: var(--muted); font-weight: 600; margin: 0; }
+.review-card dd { margin: 0; white-space: pre-wrap; color: var(--text); }
+.review-card .changed { display: inline-block; margin-left: 0.4rem; padding: 0 0.45rem; border: 2px solid var(--focus); border-radius: 6px; font-size: 0.8rem; font-weight: 700; color: var(--focus); }
+.review-card .count { display: inline-block; margin-left: 0.4rem; padding: 0 0.45rem; background: var(--accent); color: var(--on-accent); border-radius: 6px; font-size: 0.8rem; font-weight: 700; }
+.review-card .more { margin: 0 0 0.6rem; }
+.review-card .more summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); }
+.review-card .more ul { margin: 0; }
+.mark-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 0.6rem; }
+.mark-row .btn { flex: 1 1 6rem; }
+.mark-row .btn[aria-pressed="true"] { border-color: var(--text); }
+.mark-row .btn[aria-pressed="true"]::before { content: "\2713\00a0"; }
+.mark-row .m-accepted[aria-pressed="true"] { background: var(--ok); color: #06210f; }
+.mark-row .m-rejected[aria-pressed="true"] { background: var(--bad); color: #2a0b08; }
+.mark-row .m-unsure[aria-pressed="true"] { background: var(--focus); color: #241c00; }
+.review-card textarea { min-height: 3.5rem; }
+.review-out { margin-top: 0.75rem; }
+.review-out textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; min-height: 8rem; }

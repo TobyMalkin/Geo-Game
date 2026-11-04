@@ -179,6 +179,25 @@
             <button type="button" id="btn-override-correct" class="btn secondary" hidden>Should be correct</button>
             <button type="button" id="btn-override-wrong" class="btn secondary" hidden>Should be wrong</button>
           </div>
+          <div id="report-box" class="report" hidden>
+            <button type="button" id="btn-report" class="btn secondary report-btn" aria-expanded="false" aria-controls="report-form">Report wrong answer</button>
+            <form id="report-form" class="report-form" novalidate hidden aria-label="Report a wrong answer">
+              <div class="field">
+                <label for="report-reported">What should the answer be?</label>
+                <input type="text" id="report-reported" maxlength="200" required autocomplete="off" aria-describedby="report-status">
+              </div>
+              <div class="field">
+                <label for="report-comment">Comment (optional)</label>
+                <textarea id="report-comment" rows="3" maxlength="500" autocomplete="off"></textarea>
+              </div>
+              <p class="hint report-note">Sent to the game's author via Google Forms. Don't include personal details.</p>
+              <div class="btn-row">
+                <button type="submit" id="btn-report-send" class="btn primary">Send</button>
+                <button type="button" id="btn-report-cancel" class="btn secondary">Cancel</button>
+              </div>
+            </form>
+            <p id="report-status" class="report-status" role="status" aria-live="polite" tabindex="-1"></p>
+          </div>
         </div>
       </div>
 

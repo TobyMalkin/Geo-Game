@@ -24,6 +24,8 @@ import { createTimer, milestoneMessage, timeUpAnswer } from './timer.js';
 import { createEmpireMap, framingView, FILTER_ALL, MAX_ZOOM, MIN_ZOOM, ZOOM_STEP } from './worldmap.js';
 import { createWheel } from './wheel.js';
 import { checkAnswer, parseNumber, parseColours } from './answer.js';
+import { REPORT } from './report-config.js';
+import { isConfigured, buildPayload, sendReport } from './report.js';
 import {
   buildQuestion, questionLabel, formatExpected, listAnd, firstBlank, imageItems, alsoAccepted, militaryNeighbours, displayHint, displayPrompt, statusNote,
   droppedNotice,
@@ -89,6 +91,7 @@ let setupColours = randomColours(2); // colour id per setup row, never shared (S
 let openPicker = null;               // index of the setup row whose colour picker is open
 let setupMode = MODE_TYPE; // the answer mode ticked on the setup screen; remembered between games
 let setupTimer = true;     // the answer timer box on the setup screen (SCHEMA 4.27); remembered between games
+let reportUi = { key: null, state: 'idle', message: '', error: false }; // "Report wrong answer" on the reveal (SCHEMA 4.28), one per reveal
 let timerKey = null;       // the question the answer timer belongs to (null = no timer is tied to a question)
 // The optional filters ticked on the setup screen (SCHEMA 4.26): a checkbox each, and the ticked items of its panel. Remembered
 // between games (New game pre-fills the last used settings); filled with every item when countries and categories are loaded.
@@ -967,7 +970,93 @@ function renderReveal(focus) {
       ? `${c.name} is now in ${p.name}'s collection. ${label} is used up for ${p.name}.`
       : `${c.name} stays in the pool. ${label} is used up for ${p.name}.`;
   updateContinueLabel();
+  renderReport();
   if (focus) focusSoon($('reveal-title'));
+}
+
+// ---- report a wrong answer (SCHEMA 4.28) ----
+// An optional inline form under the reveal buttons. It sends the reported answer to a Google Form and never touches the game:
+// no player name is sent, Continue works throughout and scoring is unaffected. Hidden when js/report-config.js is empty.
+
+function renderReport() {
+  const box = $('report-box');
+  box.hidden = !isConfigured(REPORT);
+  if (box.hidden) return;
+  const key = `${gameToken}:${game.currentPlayer}:${turn.categoryId}:${turn.iso3}`;
+  if (reportUi.key !== key) { // a new reveal: a fresh, closed form
+    reportUi = { key, state: 'idle', message: '', error: false };
+    $('report-reported').value = '';
+    $('report-comment').value = '';
+    $('report-reported').removeAttribute('aria-invalid');
+  }
+  const open = reportUi.state === 'open' || reportUi.state === 'sending';
+  const sent = reportUi.state === 'sent';
+  $('report-form').hidden = !open;
+  $('btn-report').setAttribute('aria-expanded', String(open));
+  $('btn-report').disabled = sent;
+  $('btn-report').textContent = sent ? 'Report sent' : 'Report wrong answer';
+  $('btn-report-send').disabled = reportUi.state === 'sending';
+  $('report-status').textContent = reportUi.message;
+  $('report-status').classList.toggle('error', reportUi.error);
+}
+
+function onReportOpen() {
+  if (!game || !reveal || stage() !== 'reveal' || reportUi.state === 'sent') return;
+  if (reportUi.state === 'idle') { reportUi.state = 'open'; reportUi.message = ''; reportUi.error = false; }
+  renderReport();
+  $('report-reported').focus();
+}
+
+function onReportCancel() {
+  if (reportUi.state === 'sending') return;
+  if (reportUi.state === 'open') { reportUi.state = 'idle'; reportUi.message = ''; reportUi.error = false; }
+  $('report-reported').removeAttribute('aria-invalid');
+  renderReport();
+  $('btn-report').focus();
+}
+
+async function onReportSubmit(e) {
+  e.preventDefault();
+  if (!game || !reveal || stage() !== 'reveal' || reportUi.state !== 'open') return;
+  const cat = catById[turn.categoryId];
+  const built = buildPayload({
+    iso3: turn.iso3,
+    country: countries[turn.iso3].name,
+    category: cat.id,
+    stored: reveal.expectedText,
+    reported: $('report-reported').value,
+    comment: $('report-comment').value,
+    given: reveal.given.join(', '),
+    mode: gameMode(game),
+  });
+  if (!built.ok) {
+    reportUi.message = built.error;
+    reportUi.error = true;
+    $('report-reported').setAttribute('aria-invalid', 'true');
+    renderReport();
+    (built.field === 'comment' ? $('report-comment') : $('report-reported')).focus();
+    return;
+  }
+  $('report-reported').removeAttribute('aria-invalid');
+  const mine = reportUi; // the player may press Continue while this is on its way: then the result belongs to nobody
+  mine.state = 'sending';
+  mine.message = 'Sending...';
+  mine.error = false;
+  renderReport();
+  const ok = await sendReport(REPORT, built.values);
+  if (reportUi !== mine) return;
+  if (ok) {
+    mine.state = 'sent';
+    mine.message = 'Thanks, your report was sent.';
+    renderReport();
+    $('report-status').focus();
+  } else {
+    mine.state = 'open';
+    mine.message = 'Could not send. Try again later.';
+    mine.error = true;
+    renderReport();
+    $('btn-report-send').focus();
+  }
 }
 
 // ---- reveal extras ----
@@ -1059,6 +1148,7 @@ function onContinue() {
   if (!isGameOver(game)) game = nextPlayer(game);
   turn = null;
   reveal = null;
+  reportUi = { key: null, state: 'idle', message: '', error: false };
   builtQuestionKey = null;
   clearTimerLive();
   if (isGameOver(game)) {
@@ -1442,6 +1532,10 @@ async function init() {
   // a background tab may throttle the poll: look at the real time as soon as the tab is back
   document.addEventListener('visibilitychange', () => qTimer.check());
   $('btn-continue').addEventListener('click', onContinue);
+  $('btn-report').addEventListener('click', onReportOpen);
+  $('btn-report-cancel').addEventListener('click', onReportCancel);
+  $('report-form').addEventListener('submit', onReportSubmit);
+  $('report-form').addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); onReportCancel(); } });
   $('btn-override-correct').addEventListener('click', () => onOverride(true));
   $('btn-override-wrong').addEventListener('click', () => onOverride(false));
   $('btn-mark-correct').addEventListener('click', () => onMark(true));
