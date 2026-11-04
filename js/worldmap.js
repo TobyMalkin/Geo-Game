@@ -8,6 +8,9 @@
 
 import { colourHex, NEUTRAL_HEX, PANEL_HEX } from './state.js';
 
+/** Countries outside the game's regions (a region-filtered game, SCHEMA 4.26): a dimmer grey than the neutral grey of an unowned country. */
+export const OUTSIDE_HEX = '#262b38';
+
 export const FILTER_ALL = 'all';
 /** A country narrower than this many screen pixels (its largest piece) also gets a marker when it is owned. */
 export const SMALL_PX = 3;
@@ -29,18 +32,19 @@ export function validFilter(selected, players) {
 /**
  * The fill of a country: its owner's colour when the filter shows that owner, otherwise the neutral grey
  * (not won, or won by someone the filter hides). A player's colour never depends on the filter.
+ * `outside` (optional Set of iso3) are the countries outside the game's regions: the dimmer OUTSIDE_HEX, never owned.
  */
-export function fillFor(iso3, owners, players, selected) {
+export function fillFor(iso3, owners, players, selected, outside = null) {
   const o = owners[iso3];
-  if (o === undefined) return NEUTRAL_HEX;
+  if (o === undefined) return outside && outside.has(iso3) ? OUTSIDE_HEX : NEUTRAL_HEX;
   if (selected !== FILTER_ALL && selected !== o) return NEUTRAL_HEX;
   return colourHex(players[o].colour);
 }
 
 /** { iso3: hex } for the given country codes. */
-export function fillMap(isoList, owners, players, selected) {
+export function fillMap(isoList, owners, players, selected, outside = null) {
   const out = {};
-  for (const iso3 of isoList) out[iso3] = fillFor(iso3, owners, players, selected);
+  for (const iso3 of isoList) out[iso3] = fillFor(iso3, owners, players, selected, outside);
   return out;
 }
 
@@ -66,18 +70,24 @@ export function markersFor(worldmap, owners, players, selected, widthPx) {
   return out;
 }
 
-/** Tooltip text: "France" and "Owner: Alice" or "Not won"; a third line, the status note ("UN observer state"), only when the country has one (CR-12). */
-export function tooltipLines(countryName, iso3, owners, players, status) {
+/**
+ * Tooltip text: "France" and "Owner: Alice" or "Not won" ("Not in this game" for a country outside the chosen regions, CR-15);
+ * a third line, the status note ("UN observer state"), only when the country has one (CR-12).
+ */
+export function tooltipLines(countryName, iso3, owners, players, status, outside = null) {
   const o = owners[iso3];
-  const lines = [countryName, o === undefined ? 'Not won' : `Owner: ${players[o].name}`];
+  const lines = [countryName, o !== undefined ? `Owner: ${players[o].name}` : outside && outside.has(iso3) ? 'Not in this game' : 'Not won'];
   if (status) lines.push(status);
   return lines;
 }
 
-/** Accessible name of the map: "World map: Alice 12 countries, Bob 1 country, Cy 0 countries". */
-export function mapLabel(players) {
+/**
+ * Accessible name of the map: "World map of empires: Alice 12 countries, Bob 1 country, Cy 0 countries."
+ * `scope` (CR-15, e.g. "Europe") adds " Regions in this game: Europe. The other countries are dimmed."
+ */
+export function mapLabel(players, scope = '') {
   const part = (p) => `${p.name} ${p.set.length} ${p.set.length === 1 ? 'country' : 'countries'}`;
-  return `World map of empires: ${players.map(part).join(', ')}.`;
+  return `World map of empires: ${players.map(part).join(', ')}.${scope ? ` Regions in this game: ${scope}. The other countries are dimmed.` : ''}`;
 }
 
 // ---- zoom and pan (fullscreen only, SCHEMA 4.25) ----
@@ -138,6 +148,69 @@ export function viewBoxOf(view) {
   return `${r(view.x)} ${r(view.y)} ${r(view.w)} ${r(view.h)}`;
 }
 
+// ---- framing a region filter (SCHEMA 4.26) ----
+
+/** Bounding boxes [minX, minY, maxX, maxY] of every ring of a worldmap path (absolute "M x y", relative "l dx dy ...", "z"). */
+export function ringBoxes(d) {
+  const out = [];
+  for (const part of String(d).split('z')) {
+    const m = part.match(/^\s*M(-?\d+)[ ,](-?\d+)(?:l(.*))?$/s);
+    if (!m) continue;
+    let x = Number(m[1]);
+    let y = Number(m[2]);
+    const box = [x, y, x, y];
+    const nums = (m[3] || '').match(/-?\d+/g) || [];
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      x += Number(nums[i]);
+      y += Number(nums[i + 1]);
+      if (x < box[0]) box[0] = x;
+      if (y < box[1]) box[1] = y;
+      if (x > box[2]) box[2] = x;
+      if (y > box[3]) box[3] = y;
+    }
+    out.push(box);
+  }
+  return out;
+}
+
+/**
+ * The part of the map that frames some countries: the bounding box of their land, padded and widened to the map's aspect ratio
+ * (so it is an ordinary view, see zoomAt), kept inside the map. Of each country the largest piece and every piece within
+ * `near` map units of it count, so a far island (Easter Island, Svalbard, the Azores) does not stretch the frame. A frame wider
+ * than `maxShare` of the map (Oceania crosses the 180th meridian) is no use, so the whole map is returned; so it is for an
+ * empty list. worldmap = parsed data/worldmap.json.
+ */
+export function framingView(worldmap, isoList, { pad = 0.06, near = 600, maxShare = 0.9 } = {}) {
+  const W = worldmap.width;
+  const H = worldmap.height;
+  const area = (b) => (b[2] - b[0]) * (b[3] - b[1]);
+  let box = null;
+  for (const iso3 of isoList) {
+    const c = worldmap.countries[iso3];
+    if (!c) continue;
+    const rings = ringBoxes(c.d);
+    if (!rings.length) continue;
+    const big = rings.reduce((a, b) => (area(b) > area(a) ? b : a));
+    for (const b of rings) {
+      const dx = Math.max(0, big[0] - b[2], b[0] - big[2]);
+      const dy = Math.max(0, big[1] - b[3], b[1] - big[3]);
+      if (Math.hypot(dx, dy) > near) continue;
+      box = box ? [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])] : b.slice();
+    }
+  }
+  if (!box) return fullView(W, H);
+  const ratio = W / H;
+  const cx = (box[0] + box[2]) / 2;
+  const cy = (box[1] + box[3]) / 2;
+  let w = (box[2] - box[0]) * (1 + 2 * pad);
+  let h = (box[3] - box[1]) * (1 + 2 * pad);
+  if (w / h < ratio) w = h * ratio; else h = w / ratio;
+  w = Math.max(w, W / MAX_ZOOM);
+  if (w > maxShare * W) return fullView(W, H);
+  h = w / ratio;
+  return clampView({ x: cx - w / 2, y: cy - h / 2, w, h }, W, H);
+}
+
 // ---------------------------------------------------------------------------
 // DOM
 // ---------------------------------------------------------------------------
@@ -152,24 +225,29 @@ function svgEl(tag, attrs = {}) {
 /**
  * Draws the map into `container` (replacing its content) and returns
  *   { setFilter(selected), setFullscreen(on), zoomBy(factor), resetZoom(), getZoom(), destroy() }.
- * opts: { worldmap, players, nameOf(iso3), onZoom(z) }.
+ * opts: { worldmap, players, nameOf(iso3), statusOf(iso3), onZoom(z, atHome), outside, frame }.
+ * outside = Set of iso3 outside the game's regions (drawn in the dimmer OUTSIDE_HEX); frame = a view (see framingView) the map
+ * opens on and returns to on "Reset zoom"; without it the whole map is the home view (CR-15).
  * Normally the SVG fills the container width and keeps the map's aspect ratio. In fullscreen mode (setFullscreen(true)) the
  * container has a fixed size: the SVG is sized to the largest box of the map's aspect ratio that fits (centred, letterboxed)
  * and zoom (buttons through zoomBy, mouse wheel, pinch) and drag-to-pan are switched on. Markers and borders keep their
  * on-screen size at every zoom (non-scaling stroke, marker radius divided by the scale).
  */
-export function createEmpireMap(container, { worldmap, players, nameOf, statusOf = () => '', onZoom = () => {} }) {
+export function createEmpireMap(container, { worldmap, players, nameOf, statusOf = () => '', onZoom = () => {}, outside = null, frame = null, scope = '' }) {
   const owners = ownerMap(players);
   const W = worldmap.width;
   const H = worldmap.height;
   let selected = FILTER_ALL;
-  let view = fullView(W, H);
+  const home = frame ? clampView(frame, W, H) : fullView(W, H);
+  let view = { ...home };
   let fs = false;
+  const outsideSet = outside && outside.size ? outside : null;
+  const atHome = () => view.x === home.x && view.y === home.y && view.w === home.w && view.h === home.h;
   container.replaceChildren();
   container.classList.add('map-wrap');
-  const svg = svgEl('svg', { viewBox: viewBoxOf(view), role: 'img', 'aria-label': mapLabel(players), class: 'empire-map', preserveAspectRatio: 'xMidYMid meet' });
+  const svg = svgEl('svg', { viewBox: viewBoxOf(view), role: 'img', 'aria-label': mapLabel(players, scope), class: 'empire-map', preserveAspectRatio: 'xMidYMid meet' });
   const land = svgEl('g', { class: 'land' });
-  const other = svgEl('path', { d: worldmap.other, fill: NEUTRAL_HEX, 'fill-rule': 'evenodd', class: 'other' });
+  const other = svgEl('path', { d: worldmap.other, fill: outsideSet ? OUTSIDE_HEX : NEUTRAL_HEX, 'fill-rule': 'evenodd', class: 'other' });
   land.append(other);
   const pathOf = {};
   for (const iso3 of Object.keys(worldmap.countries)) {
@@ -186,7 +264,7 @@ export function createEmpireMap(container, { worldmap, players, nameOf, statusOf
   container.append(svg, tip);
 
   function paint() {
-    for (const iso3 of Object.keys(pathOf)) pathOf[iso3].setAttribute('fill', fillFor(iso3, owners, players, selected));
+    for (const iso3 of Object.keys(pathOf)) pathOf[iso3].setAttribute('fill', fillFor(iso3, owners, players, selected, outsideSet));
   }
   // screen pixels per map unit: the SVG box has the map's aspect ratio, so this is its width over the view width
   function scale() {
@@ -222,7 +300,7 @@ export function createEmpireMap(container, { worldmap, players, nameOf, statusOf
     svg.setAttribute('viewBox', viewBoxOf(view));
     hideTip();
     drawMarkers();
-    onZoom(viewZoom(view, W));
+    onZoom(viewZoom(view, W), atHome());
   }
   // map point under a client position
   function toMap(clientX, clientY) {
@@ -241,7 +319,7 @@ export function createEmpireMap(container, { worldmap, players, nameOf, statusOf
     if (shown && pathOf[shown]) pathOf[shown].classList.remove('sel');
     shown = iso3;
     if (pathOf[iso3]) pathOf[iso3].classList.add('sel');
-    const [name, owner, status] = tooltipLines(nameOf(iso3), iso3, owners, players, statusOf(iso3));
+    const [name, owner, status] = tooltipLines(nameOf(iso3), iso3, owners, players, statusOf(iso3), outsideSet);
     tip.replaceChildren();
     const b = document.createElement('strong');
     b.textContent = name;
@@ -358,12 +436,12 @@ svg.addEventListener('lostpointercapture', endPointer);
       fs = !!on;
       pointers.clear();
       container.classList.toggle('zoomable', fs);
-      view = fullView(W, H);
+      view = { ...home };
       svg.setAttribute('viewBox', viewBoxOf(view));
       fitBox();
       hideTip();
       drawMarkers();
-      onZoom(1);
+      onZoom(viewZoom(view, W), true);
     },
     zoomBy(factor) {
       if (!fs) return;
@@ -371,9 +449,10 @@ svg.addEventListener('lostpointercapture', endPointer);
     },
     resetZoom() {
       if (!fs) return;
-      setView(fullView(W, H));
+      setView({ ...home });
     },
     getZoom() { return viewZoom(view, W); },
+    atHome,
     destroy() { if (ro) ro.disconnect(); container.replaceChildren(); },
   };
 }

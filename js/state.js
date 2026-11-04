@@ -11,6 +11,11 @@
 //     round: number,           // starts at 1, +1 each time play wraps to the first active player
 //     endReason: null | 'pool-empty' | 'no-categories' | 'all-voted',
 //     mode: 'type' | 'display',  // answer mode, fixed for the whole game (SCHEMA 4.24); a state without it is 'type'
+//     filters: { regions: string[] | null, categories: string[] | null, dropped: string[] },
+//                        // optional setup filters (SCHEMA 4.26, CR-15): regions = the chosen regions (null = whole world),
+//                        // categories = the categories every player starts with (null = all of them), dropped = chosen
+//                        // categories that had no data for the pool and were left out; a state without it has no filters
+//     timer: boolean,    // the 60-second answer timer (SCHEMA 4.27, CR-16), default true; a state without it has the timer on
 //     countries: object        // the countries.json object, shared by reference, treated as read-only
 //   }
 //
@@ -33,6 +38,16 @@ export function gameMode(state) {
 /** True when a saved mode value is usable: absent (an old save, loads as 'type') or one of the two modes. */
 export function validMode(mode) {
   return mode === undefined || ANSWER_MODES.includes(mode);
+}
+
+/** True when the game has the 60-second answer timer (SCHEMA 4.27): on unless the state says `timer: false` (old saves have none, so on). */
+export function gameTimer(state) {
+  return !(state && state.timer === false);
+}
+
+/** True when a saved timer value is usable: absent (an old save, loads as on) or a boolean. */
+export function validTimer(timer) {
+  return timer === undefined || typeof timer === 'boolean';
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +133,110 @@ export function fillColours(given, n) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Setup filters (SCHEMA 4.26, CR-15): play with only some categories and/or only some regions.
+// A filters value is { regions: string[] | null, categories: string[] | null }: null = no limit (whole world / all categories).
+// ---------------------------------------------------------------------------
+
+export const REGIONS = ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania'];
+export const NO_FILTERS = Object.freeze({ regions: null, categories: null, dropped: Object.freeze([]) });
+
+/** { Africa: n, ... } number of countries per region (every region of REGIONS is a key). */
+export function regionCounts(countries) {
+  const out = Object.fromEntries(REGIONS.map((r) => [r, 0]));
+  for (const iso3 of Object.keys(countries)) {
+    const r = countries[iso3] && countries[iso3].region;
+    if (Object.hasOwn(out, r)) out[r]++;
+  }
+  return out;
+}
+
+const categoryIdOf = (c) => (typeof c === 'string' ? c : c.id);
+
+/**
+ * Works out a game from the setup choices (pure; createGame uses it, and the setup screen calls it to show errors).
+ * `filters` = { regions, categories } as ticked on the setup screen (null or missing = no limit).
+ * Returns { ok: true, pool, categoryIds, filters: { regions, categories, dropped }, dropped } or { ok: false, error, message }
+ * where error is 'regions' (none chosen), 'categories' (none chosen) or 'no-data' (every chosen category lacks data for the pool).
+ * Unknown region names and category ids are ignored. A choice of all 5 regions is stored as null; a choice of all categories is
+ * stored as null unless some were dropped for having no data, in which case the explicit list that is left is stored.
+ */
+export function planGame(countries, categories, filters = null) {
+  const allIds = categories.map(categoryIdOf);
+  const f = filters || {};
+  let regions = null;
+  if (Array.isArray(f.regions)) {
+    regions = REGIONS.filter((r) => f.regions.includes(r));
+    if (regions.length === 0) return { ok: false, error: 'regions', message: 'Choose at least one region.' };
+    if (regions.length === REGIONS.length) regions = null;
+  }
+  let chosen = allIds;
+  let restricted = false;
+  if (Array.isArray(f.categories)) {
+    chosen = allIds.filter((id) => f.categories.includes(id));
+    if (chosen.length === 0) return { ok: false, error: 'categories', message: 'Choose at least one category.' };
+    restricted = chosen.length < allIds.length;
+  }
+  const pool = Object.keys(countries)
+    .filter((iso3) => regions === null || regions.includes(countries[iso3].region))
+    .sort();
+  // Without a filter nothing is dropped (a category nobody has data for is simply never offered, see availableCategories).
+  const dropped = regions === null && !restricted ? [] : chosen.filter((id) => !pool.some((iso3) => hasData(countries[iso3], id)));
+  const kept = chosen.filter((id) => !dropped.includes(id));
+  if (kept.length === 0 && (regions !== null || restricted)) {
+    return { ok: false, error: 'no-data', message: 'None of the chosen categories has data for these countries. Choose other categories or regions.' };
+  }
+  return {
+    ok: true,
+    pool,
+    categoryIds: kept,
+    dropped,
+    filters: { regions, categories: restricted || dropped.length ? kept : null, dropped },
+  };
+}
+
+/** The filters of a game state (or a saved game); NO_FILTERS when it has none (an old save). */
+export function filtersOf(state) {
+  return state && state.filters ? state.filters : NO_FILTERS;
+}
+
+/** True when a game has a region or category filter. */
+export function hasFilters(state) {
+  const f = filtersOf(state);
+  return f.regions !== null || f.categories !== null;
+}
+
+/** True when the country belongs to the game's regions (always true without a region filter). */
+export function inScope(state, iso3, countries = state.countries) {
+  const f = filtersOf(state);
+  return f.regions === null || (countries[iso3] != null && f.regions.includes(countries[iso3].region));
+}
+
+/** Short text for the game header, e.g. "Europe · 8 categories" or "Asia, Europe"; '' when there is no filter. */
+export function filterSummary(state) {
+  const f = filtersOf(state);
+  const parts = [];
+  if (f.regions !== null) parts.push(f.regions.length <= 2 ? f.regions.join(', ') : `${f.regions.length} regions`);
+  if (f.categories !== null) parts.push(`${f.categories.length} ${f.categories.length === 1 ? 'category' : 'categories'}`);
+  return parts.join(' · ');
+}
+
+/**
+ * Checks a saved filters value against the data. Returns the filters to use ({ regions, categories, dropped }), NO_FILTERS for a save
+ * with none (before 1.16), or null when it is unusable (wrong types, unknown or repeated names, an empty list).
+ */
+export function parseFilters(raw, countries, categoryIds) {
+  if (raw === undefined) return NO_FILTERS;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const list = (v, known) => v === null || (Array.isArray(v) && v.length > 0 && v.every((x) => known.includes(x)) && new Set(v).size === v.length);
+  if (!list(raw.regions, REGIONS) || !list(raw.categories, categoryIds)) return null;
+  if (raw.regions !== null && raw.regions.length === REGIONS.length) return null; // all regions are stored as null
+  if (!Array.isArray(raw.dropped) || !raw.dropped.every((x) => categoryIds.includes(x)) || new Set(raw.dropped).size !== raw.dropped.length) return null;
+  if (raw.categories !== null && raw.dropped.some((x) => raw.categories.includes(x))) return null;
+  if (raw.dropped.length && raw.categories === null) return null;
+  return { regions: raw.regions, categories: raw.categories, dropped: raw.dropped.slice() };
+}
+
 /** Random element of list, or undefined if the list is empty. rng returns [0, 1). */
 export function pickRandom(list, rng = Math.random) {
   if (!list || list.length === 0) return undefined;
@@ -151,13 +270,19 @@ function withPlayers(state, players, extra = {}) {
  * @param {Array<{id:string}|string>} categories categories.json array (objects with id, or plain ids)
  * @param {'type'|'display'} [mode] answer mode (SCHEMA 4.24), 'type' unless 'display' is asked for
  * @param {string[]} [colours] colour id per player (SCHEMA 4.25); missing or invalid entries are filled in palette order
+ * @param {{regions: string[]|null, categories: string[]|null}} [filters] setup filters (SCHEMA 4.26): the pool is the countries of
+ *   the chosen regions and every player starts with the chosen categories that have data for that pool (see planGame); throws
+ *   when the choice is empty or leaves no category
+ * @param {boolean} [timer] the answer timer (SCHEMA 4.27), on unless false
  */
-export function createGame(playerNames, countries, categories, mode = MODE_TYPE, colours = undefined) {
+export function createGame(playerNames, countries, categories, mode = MODE_TYPE, colours = undefined, filters = null, timer = true) {
   if (!Array.isArray(playerNames) || playerNames.length < 1) {
     throw new Error('createGame needs at least one player');
   }
-  const ids = categories.map((c) => (typeof c === 'string' ? c : c.id));
-  const pool = Object.keys(countries).sort();
+  const plan = planGame(countries, categories, filters);
+  if (!plan.ok) throw new Error(plan.message);
+  const ids = plan.categoryIds;
+  const pool = plan.pool;
   const own = fillColours(colours, playerNames.length);
   const state = {
     players: playerNames.map((name, i) => ({
@@ -173,6 +298,8 @@ export function createGame(playerNames, countries, categories, mode = MODE_TYPE,
     round: 1,
     endReason: null,
     mode: mode === MODE_DISPLAY ? MODE_DISPLAY : MODE_TYPE,
+    filters: plan.filters,
+    timer: timer !== false,
     countries,
   };
   return finalize(state);

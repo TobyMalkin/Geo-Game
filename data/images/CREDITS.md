@@ -5030,7 +5030,7 @@ One row per image use. Generated file, do not edit by hand.
 | Eastern Highlands | ZWE | landmarks/ZWE/eastern-highlands.jpg | Axel Bohnstedt | [CC BY-SA 3.0](http://creativecommons.org/licenses/by-sa/3.0/) | [file page](https://commons.wikimedia.org/wiki/File:Mt_Binga_Mozambique.JPG) |
 | Chinhoyi Caves | ZWE | landmarks/ZWE/chinhoyi-caves.jpg | Suesen | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) | [file page](https://commons.wikimedia.org/wiki/File:Chinhoyi_caves,_Zimbabwe.JPG) |
 
-## Alcohol (175)
+## Alcohol (178)
 
 | Subject | Country | File | Author | Licence | Source |
 |---|---|---|---|---|---|
@@ -5058,6 +5058,7 @@ One row per image use. Generated file, do not edit by hand.
 | Beer | BOL | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Beer | BRA | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Rum | BRB | alcohol/ATG/rum.jpg | Linus Bohman from Malmö, Sweden | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:A_glass_of_rum.jpg) |
+| Beer | BWA | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Palm wine | CAF | alcohol/BGD/palm-wine.jpg | Dhruvarahjs at ml.wikipedia | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0) | [file page](https://commons.wikimedia.org/wiki/File:Toddy_Bottle_and_Glass.jpg) |
 | Beer | CAN | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Beer | CHL | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
@@ -5105,14 +5106,15 @@ One row per image use. Generated file, do not edit by hand.
 | Arrack | IDN | alcohol/IDN/arrack.jpg | SilentBobxy2 | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) | [file page](https://commons.wikimedia.org/wiki/File:Bottlesofarrack.jpg) |
 | Whisky | IND | alcohol/IND/whisky.jpg | Guinnog | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) | [file page](https://commons.wikimedia.org/wiki/File:Whiskyhogmanay2010.jpg) |
 | Beer | IRL | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
-| Arak | IRQ | alcohol/IRQ/arak.jpg | Preacher lad | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [file page](https://commons.wikimedia.org/wiki/File:Arak_with_water_and_ice.jpg) |
+| Beer | IRQ | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Beer | ISL | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
-| Vodka | ISR | alcohol/BLR/vodka.jpg | Ashley Pomeroy | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | [file page](https://commons.wikimedia.org/wiki/File:Smirnoff_Red_Label_8213.jpg) |
+| Beer | ISR | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Wine | ITA | alcohol/ITA/wine.jpg | giulio nepi | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Fiasco_di_vino_rosso_da_tavola_Monteriggioni.jpg) |
 | Rum | JAM | alcohol/ATG/rum.jpg | Linus Bohman from Malmö, Sweden | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:A_glass_of_rum.jpg) |
 | Arak | JOR | alcohol/IRQ/arak.jpg | Preacher lad | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [file page](https://commons.wikimedia.org/wiki/File:Arak_with_water_and_ice.jpg) |
 | Beer | JPN | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Vodka | KAZ | alcohol/BLR/vodka.jpg | Ashley Pomeroy | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | [file page](https://commons.wikimedia.org/wiki/File:Smirnoff_Red_Label_8213.jpg) |
+| Beer | KEN | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Vodka | KGZ | alcohol/BLR/vodka.jpg | Ashley Pomeroy | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | [file page](https://commons.wikimedia.org/wiki/File:Smirnoff_Red_Label_8213.jpg) |
 | Beer | KHM | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Beer | KIR | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
@@ -5145,7 +5147,7 @@ One row per image use. Generated file, do not edit by hand.
 | Beer | MYS | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Wine | NAM | alcohol/AFG/wine.jpg | André Karwath | [CC BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5) | [file page](https://commons.wikimedia.org/wiki/File:Red_and_white_wine_in_glass.jpg) |
 | Dolo | NER | alcohol/BFA/dolo.jpg | Amcaja | [CC BY-SA 3.0](http://creativecommons.org/licenses/by-sa/3.0/) | [file page](https://commons.wikimedia.org/wiki/File:Millet_beer_in_Rhumsiki.jpg) |
-| Palm wine | NGA | alcohol/BGD/palm-wine.jpg | Dhruvarahjs at ml.wikipedia | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0) | [file page](https://commons.wikimedia.org/wiki/File:Toddy_Bottle_and_Glass.jpg) |
+| Beer | NGA | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Rum | NIC | alcohol/ATG/rum.jpg | Linus Bohman from Malmö, Sweden | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:A_glass_of_rum.jpg) |
 | Beer | NLD | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Beer | NOR | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
@@ -5209,3 +5211,4 @@ One row per image use. Generated file, do not edit by hand.
 | Beer | XKX | alcohol/TWN/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
 | Wine | YEM | alcohol/AFG/wine.jpg | André Karwath | [CC BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5) | [file page](https://commons.wikimedia.org/wiki/File:Red_and_white_wine_in_glass.jpg) |
 | Beer | ZAF | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |
+| Beer | ZWE | alcohol/AGO/beer.jpg | KOREA.NET - Official page of the Republic of Korea | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) | [file page](https://commons.wikimedia.org/wiki/File:Jeju_beer_09_(cropped).jpg) |

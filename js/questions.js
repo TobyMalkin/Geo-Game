@@ -228,6 +228,15 @@ export function listAnd(names) {
 }
 
 /**
+ * The notice for chosen categories that were left out because no country in the game's regions has data for them (CR-15):
+ * "Highest point has no data for these countries and was left out." Empty string for an empty list.
+ */
+export function droppedNotice(labels) {
+  if (!labels || labels.length === 0) return '';
+  return `${listAnd(labels)} ${labels.length === 1 ? 'has' : 'have'} no data for these countries and ${labels.length === 1 ? 'was' : 'were'} left out.`;
+}
+
+/**
  * Index of the first blank answer box, or -1 when every box is filled. A box is blank when it is empty,
  * whitespace only, or has no letter or digit at all (for example "-", "?" or "...").
  */

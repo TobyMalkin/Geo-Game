@@ -7,21 +7,26 @@
 //                      correct is the result in force, overruled is true when the players flipped the automatic check
 //                      Display mode (SCHEMA 4.24): correct is null until the players mark Correct or Wrong (nothing is
 //                      scored before that); given is always empty and overruled is false.
+//                      timedOut (SCHEMA 4.27, optional) is true when the answer timer ran out and ended the question.
 //
 // Developer hooks (harmless in play, used by the headless playtest):
 //   ?fast                       short wheel animation and no pause after landing
+//   (the answer timer reads Date.now(); the QA scripts fake it by overriding Date.now in the test browser only)
 //   globalThis.__geoForce       { category: 'outline', country: 'MLT' } makes the next spin land there
 
 import {
   createGame, availableCategories, eligibleCountries, applyResult, overrideResult, setVote, nextPlayer,
   isGameOver, endReason, ranking, gameMode, validMode, applyDisplayResult, canContinue, MODE_TYPE, MODE_DISPLAY,
   PALETTE, colourOf, colourHex, randomColours, randomUnusedColour, changeColour, isColourTaken, fillColours,
+  REGIONS, regionCounts, planGame, parseFilters, filtersOf, filterSummary, inScope, gameTimer, validTimer,
 } from './state.js';
-import { createEmpireMap, FILTER_ALL, MAX_ZOOM, MIN_ZOOM, ZOOM_STEP } from './worldmap.js';
+import { createTimer, milestoneMessage, timeUpAnswer } from './timer.js';
+import { createEmpireMap, framingView, FILTER_ALL, MAX_ZOOM, MIN_ZOOM, ZOOM_STEP } from './worldmap.js';
 import { createWheel } from './wheel.js';
 import { checkAnswer, parseNumber, parseColours } from './answer.js';
 import {
   buildQuestion, questionLabel, formatExpected, listAnd, firstBlank, imageItems, alsoAccepted, militaryNeighbours, displayHint, displayPrompt, statusNote,
+  droppedNotice,
 } from './questions.js';
 
 const SAVE_KEY = 'geogame.save.v1';
@@ -83,6 +88,11 @@ let lastColours = null;
 let setupColours = randomColours(2); // colour id per setup row, never shared (SCHEMA 4.25)
 let openPicker = null;               // index of the setup row whose colour picker is open
 let setupMode = MODE_TYPE; // the answer mode ticked on the setup screen; remembered between games
+let setupTimer = true;     // the answer timer box on the setup screen (SCHEMA 4.27); remembered between games
+let timerKey = null;       // the question the answer timer belongs to (null = no timer is tied to a question)
+// The optional filters ticked on the setup screen (SCHEMA 4.26): a checkbox each, and the ticked items of its panel. Remembered
+// between games (New game pre-fills the last used settings); filled with every item when countries and categories are loaded.
+let setupFilters = { catsOn: false, cats: new Set(), regsOn: false, regs: new Set() };
 let catWheel = null;
 let countryWheel = null;
 let countryWheelHidden = null;
@@ -119,7 +129,8 @@ function validReveal(rv, display) {
   // correct: null is a display-mode reveal that has not been marked yet
   return !!rv && typeof rv === 'object' && (typeof rv.correct === 'boolean' || (display && rv.correct === null)) && isStr(rv.expectedText)
     && Array.isArray(rv.given) && rv.given.every(isStr)
-    && (rv.overruled === undefined || typeof rv.overruled === 'boolean');
+    && (rv.overruled === undefined || typeof rv.overruled === 'boolean')
+    && (rv.timedOut === undefined || typeof rv.timedOut === 'boolean');
 }
 
 // Returns { game, turn, reveal } for a usable save, otherwise null. Never throws.
@@ -130,7 +141,13 @@ function parseSave(raw) {
     const g = { ...d.game, countries };
     if (!validMode(g.mode)) return null;
     g.mode = gameMode(g); // a save from before CR-10 has no mode and loads as 'type'
+    if (!validTimer(g.timer)) return null;
+    g.timer = gameTimer(g); // a save from before CR-16 has no timer setting and loads with the timer on (SCHEMA 4.27)
     if (!Array.isArray(g.players)) return null;
+    // Filters (SCHEMA 4.26): a save from before CR-15 has none and plays the whole world with every category.
+    const filters = parseFilters(g.filters, countries, Object.keys(catById));
+    if (!filters) return null;
+    g.filters = { ...filters, dropped: filters.dropped.slice() };
     const n = g.players.length;
     if (n < MIN_PLAYERS || n > MAX_PLAYERS) return null;
     if (g.phase !== 'playing' && g.phase !== 'ended') return null;
@@ -138,21 +155,23 @@ function parseSave(raw) {
     if (!Number.isInteger(g.round) || g.round < 1) return null;
     // Own-key lookups only: a saved id such as "constructor" must not match an inherited property.
     const isCountry = (c) => isStr(c) && Object.hasOwn(countries, c);
+    const inRegions = (c) => g.filters.regions === null || g.filters.regions.includes(countries[c].region);
     const isCategory = (c) => isStr(c) && Object.hasOwn(catById, c);
-    if (!Array.isArray(g.pool) || !g.pool.every(isCountry)) return null;
+    if (!Array.isArray(g.pool) || !g.pool.every(isCountry) || !g.pool.every(inRegions)) return null;
     const owned = new Set(g.pool);
     if (owned.size !== g.pool.length) return null;
     for (const p of g.players) {
       if (!p || typeof p !== 'object' || !isStr(p.name) || p.name === '') return null;
       if (typeof p.voteEnd !== 'boolean') return null;
       if (!Array.isArray(p.set) || !Array.isArray(p.remainingCategories)) return null;
-      if (!p.set.every(isCountry)) return null;
+      if (!p.set.every(isCountry) || !p.set.every(inRegions)) return null;
       // Each country is in exactly one place: the pool or one player's set.
       for (const c of p.set) {
         if (owned.has(c)) return null;
         owned.add(c);
       }
       if (!p.remainingCategories.every(isCategory)) return null;
+      if (g.filters.categories !== null && !p.remainingCategories.every((id) => g.filters.categories.includes(id))) return null;
       if (new Set(p.remainingCategories).size !== p.remainingCategories.length) return null;
     }
     // Colours (SCHEMA 4.25): a save from before CR-11 has none and gets them in palette order; a bad or repeated one is replaced.
@@ -213,7 +232,7 @@ function showScreen(name) {
   for (const s of ['setup', 'game', 'results']) $('screen-' + s).hidden = s !== name;
   document.body.classList.toggle('results-wide', name === 'results'); // Amendment 4: header and results panel as wide as the map band
   $('btn-new-game').hidden = name === 'setup';
-  if (name !== 'game') $('mode-label').hidden = true;
+  if (name !== 'game') { $('mode-label').hidden = true; $('filter-label').hidden = true; }
 }
 
 function focusSoon(node) {
@@ -304,12 +323,101 @@ function renderSetup(focusIndex = null, focusId = null, focusRadio = null) {
   $('btn-add-player').disabled = setupNames.length >= MAX_PLAYERS;
   $('mode-type').checked = setupMode !== MODE_DISPLAY;
   $('mode-display').checked = setupMode === MODE_DISPLAY;
+  $('opt-timer').checked = setupTimer;
+  renderFilters();
   if (focusIndex !== null) focusSoon($(`player-name-${focusIndex}`));
   if (focusId) focusSoon($(focusId));
   if (focusRadio) {
     const r = document.querySelector(`#colour-picker-${focusRadio.row} input[value="${focusRadio.value}"]`);
     if (r) focusSoon(r);
   }
+}
+
+// ---- optional filters (SCHEMA 4.26) ----
+
+function allCategoryIds() { return categories.map((c) => c.id); }
+
+// Fills the remembered setup filters with every item ticked, once the data is loaded.
+function initSetupFilters() {
+  setupFilters = { catsOn: false, cats: new Set(allCategoryIds()), regsOn: false, regs: new Set(REGIONS) };
+}
+
+// Sets the setup filters to what a game used (Play again, resume), so New game pre-fills them.
+function setSetupFromFilters(f) {
+  setupFilters = {
+    catsOn: f.categories !== null, cats: new Set(f.categories === null ? allCategoryIds() : f.categories),
+    regsOn: f.regions !== null, regs: new Set(f.regions === null ? REGIONS : f.regions),
+  };
+}
+
+// What the setup screen asks for: null where a filter is off.
+function chosenFilters() {
+  return {
+    categories: setupFilters.catsOn ? allCategoryIds().filter((id) => setupFilters.cats.has(id)) : null,
+    regions: setupFilters.regsOn ? REGIONS.filter((r) => setupFilters.regs.has(r)) : null,
+  };
+}
+
+function filterCountText(n, total, noun) {
+  return `${n} of ${total} ${noun} selected`;
+}
+
+function updateFilterCounts() {
+  $('cats-count').textContent = filterCountText(setupFilters.cats.size, categories.length, 'categories');
+  $('regions-count').textContent = filterCountText(setupFilters.regs.size, REGIONS.length, 'regions');
+}
+
+// One filter block: the checkbox that opens the panel, and the checkbox list inside it.
+function renderFilterBlock({ toggle, panel, list, on, items, chosen, idPrefix }) {
+  $(toggle).checked = on;
+  $(toggle).setAttribute('aria-expanded', String(on));
+  $(panel).hidden = !on;
+  $(list).replaceChildren(...items.map(({ value, label }) => {
+    const id = `${idPrefix}-${value}`;
+    const box = el('input', { type: 'checkbox', id, value });
+    box.checked = chosen.has(value);
+    box.addEventListener('change', () => {
+      if (box.checked) chosen.add(value); else chosen.delete(value);
+      $('filter-error').textContent = '';
+      updateFilterCounts();
+    });
+    return el('label', { class: 'check', for: id }, box, el('span', { text: label }));
+  }));
+}
+
+function renderFilters() {
+  const counts = regionCounts(countries);
+  renderFilterBlock({
+    toggle: 'opt-cats', panel: 'cats-panel', list: 'cats-list', on: setupFilters.catsOn, chosen: setupFilters.cats, idPrefix: 'cat',
+    items: categories.map((c) => ({ value: c.id, label: c.label })),
+  });
+  renderFilterBlock({
+    toggle: 'opt-regions', panel: 'regions-panel', list: 'regions-list', on: setupFilters.regsOn, chosen: setupFilters.regs, idPrefix: 'region',
+    items: REGIONS.map((r) => ({ value: r, label: `${r} (${counts[r]})` })),
+  });
+  updateFilterCounts();
+}
+
+function onFilterToggle(key, toggleId, panelId) {
+  const on = $(toggleId).checked;
+  setupFilters[key] = on;
+  $(toggleId).setAttribute('aria-expanded', String(on));
+  $(panelId).hidden = !on;
+  $('filter-error').textContent = '';
+}
+
+function onFilterAll(set, values, listId) {
+  values.forEach((v) => set.add(v));
+  $('filter-error').textContent = '';
+  for (const box of $(listId).querySelectorAll('input')) box.checked = true;
+  updateFilterCounts();
+}
+
+function onFilterNone(set, listId) {
+  set.clear();
+  $('filter-error').textContent = '';
+  for (const box of $(listId).querySelectorAll('input')) box.checked = false;
+  updateFilterCounts();
 }
 
 function renderResumeBox() {
@@ -323,6 +431,8 @@ function renderResumeBox() {
 
 function goToSetup() {
   gameToken++;
+  stopTimer();
+  clearTimerLive();
   game = null;
   turn = null;
   reveal = null;
@@ -355,6 +465,15 @@ async function onSetupSubmit(e) {
     seen.add(key);
   }
   const mode = $('mode-display').checked ? MODE_DISPLAY : MODE_TYPE;
+  const filters = chosenFilters();
+  const plan = planGame(countries, categories, filters);
+  if (!plan.ok) {
+    $('filter-error').textContent = plan.message;
+    // the panel that needs a tick is open (the error comes from its checkbox being on); put focus on its first box
+    const first = plan.error === 'categories' ? $('cats-list') : plan.error === 'regions' ? $('regions-list') : null;
+    focusSoon(first ? first.querySelector('input') : $('opt-cats').checked ? $('cats-all') : $('regions-all'));
+    return;
+  }
   // Starting overwrites the saved game, so ask first when there is a usable one.
   if (loadSave()) {
     submitting = true;
@@ -366,14 +485,17 @@ async function onSetupSubmit(e) {
     }
     if (!ok) { focusSoon($('btn-start')); return; }
   }
-  startGame(names, mode, setupColours.slice());
+  startGame(names, mode, setupColours.slice(), filters, $('opt-timer').checked);
 }
 
-function startGame(names, mode = MODE_TYPE, colours = undefined) {
+function startGame(names, mode = MODE_TYPE, colours = undefined, filters = null, timer = true) {
   gameToken++;
+  stopTimer();
+  clearTimerLive();
   lastNames = names.slice();
   setupMode = mode;
-  game = createGame(names, countries, categories, mode, colours);
+  setupTimer = timer !== false;
+  game = createGame(names, countries, categories, mode, colours, filters, setupTimer);
   lastColours = game.players.map((p) => p.colour);
   turn = null;
   reveal = null;
@@ -385,6 +507,8 @@ function startGame(names, mode = MODE_TYPE, colours = undefined) {
   renderGame();
   renderPlayers();
   prefetchWorldMap();
+  const note = droppedNoteText();
+  if (note) announce(note);
 }
 
 function resumeSaved() {
@@ -392,6 +516,8 @@ function resumeSaved() {
   if (!saved) { renderResumeBox(); return; }
   try {
     gameToken++;
+    stopTimer();
+    clearTimerLive();
     game = saved.game;
     turn = saved.turn;
     reveal = saved.reveal;
@@ -404,6 +530,8 @@ function resumeSaved() {
     lastNames = game.players.map((p) => p.name);
     lastColours = game.players.map((p) => p.colour);
     setupMode = gameMode(game);
+    setupTimer = gameTimer(game);
+    setSetupFromFilters(filtersOf(game));
     prefetchWorldMap();
   } catch (err) {
     // Any failure: drop the save and return to setup, so the game screen is never left half-drawn.
@@ -444,6 +572,11 @@ function getCountryWheel(hideNames) {
   return countryWheel;
 }
 
+// "Highest point has no data for these countries and was left out." (empty when nothing was dropped)
+function droppedNoteText() {
+  return droppedNotice(filtersOf(game).dropped.map((id) => catById[id].label));
+}
+
 function renderGame({ focus = true } = {}) {
   const p = game.players[game.currentPlayer];
   const st = stage();
@@ -451,10 +584,17 @@ function renderGame({ focus = true } = {}) {
   const display = gameMode(game) === MODE_DISPLAY;
   $('mode-label').textContent = display ? 'Display mode' : 'Type mode';
   $('mode-label').hidden = false;
+  const summary = filterSummary(game);
+  $('filter-label').textContent = summary;
+  $('filter-label').hidden = !summary;
+  const dropped = droppedNoteText();
+  $('turn-dropped').textContent = dropped;
+  $('turn-dropped').hidden = !dropped;
   $('turn-title').replaceChildren(swatch(p.colour, ' lead'), `${p.name}'s turn`);
   $('turn-sub').textContent = `Round ${game.round} · ${plural(p.set.length, 'country', 'countries')} won · ${plural(left, 'category', 'categories')} left`;
 
   const spinning = st === 'category' || st === 'country';
+  if (spinning) stopTimer(); // the timer never runs while no question is shown
   $('panel-spin').hidden = !spinning;
   $('panel-question').hidden = !(st === 'question' || st === 'reveal');
   $('panel-reveal').hidden = st !== 'reveal';
@@ -490,6 +630,7 @@ function renderGame({ focus = true } = {}) {
     if (focus) focusSoon($('btn-spin'));
   } else {
     renderQuestion(st === 'reveal');
+    syncTimer(st);
     if (st === 'reveal') renderReveal(focus);
     else if (focus) focusSoon(display ? $('btn-submit') : $('q-inputs').querySelector('input'));
   }
@@ -511,6 +652,7 @@ function rngFor(items, kind) {
 
 async function onSpin() {
   if (busy || !game) return;
+  stopTimer();
   const token = gameToken;
   const st = stage();
   if (st !== 'category' && st !== 'country') return;
@@ -681,17 +823,25 @@ function invalidMessage(cat) {
 
 function onAnswerSubmit(e) {
   e.preventDefault();
+  submitAnswer(false);
+}
+
+// timedOut: the answer timer ran out (SCHEMA 4.27). Display mode reveals the answer as "Show answer" does; type mode checks what is
+// in the boxes as it stands, with no complaint about blank or unreadable boxes (those count as wrong).
+function submitAnswer(timedOut) {
   if (!game || stage() !== 'question') return;
   const cat = catById[turn.categoryId];
   const iso3 = turn.iso3;
   if (gameMode(game) === MODE_DISPLAY) {
+    stopTimer();
     // "Show answer": reveal it unscored; the players mark Correct or Wrong next (SCHEMA 4.24)
-    reveal = { correct: null, expectedText: formatExpected(cat, countries[iso3][cat.id], { countries, iso3 }), given: [], overruled: false };
+    reveal = { correct: null, expectedText: formatExpected(cat, countries[iso3][cat.id], { countries, iso3 }), given: [], overruled: false, ...(timedOut ? { timedOut: true } : {}) };
     saveGame();
     renderGame();
     renderPlayers();
     return;
   }
+  if (timedOut) { stopTimer(); submitTimedOut(cat, iso3); return; }
   const inputEls = [...$('q-inputs').querySelectorAll('input[type="text"]')];
   const noneEls = [...$('q-inputs').querySelectorAll('input[type="checkbox"]')];
   let values = inputEls.map((i) => i.value);
@@ -736,6 +886,7 @@ function onAnswerSubmit(e) {
     return;
   }
   const correct = res.status === 'correct';
+  stopTimer();
   game = applyResult(game, game.currentPlayer, cat.id, iso3, correct);
   reveal = {
     correct,
@@ -743,6 +894,18 @@ function onAnswerSubmit(e) {
     given: values.map((v) => v.trim()).filter(Boolean),
     overruled: false,
   };
+  saveGame();
+  renderGame();
+  renderPlayers();
+}
+
+// Type mode, time is up: whatever is in the boxes is checked normally; an empty or unreadable answer counts as wrong.
+function submitTimedOut(cat, iso3) {
+  const typed = [...$('q-inputs').querySelectorAll('input[type="text"]')].map((i) => i.value);
+  const noColour = [...$('q-inputs').querySelectorAll('input[type="checkbox"]')].map((c) => c.checked);
+  const { correct, given } = timeUpAnswer(cat, countries[iso3][cat.id], typed, noColour, { countries, iso3 });
+  game = applyResult(game, game.currentPlayer, cat.id, iso3, correct);
+  reveal = { correct, expectedText: formatExpected(cat, countries[iso3][cat.id], { countries, iso3 }), given, overruled: false, timedOut: true };
   saveGame();
   renderGame();
   renderPlayers();
@@ -756,20 +919,21 @@ function renderReveal(focus) {
   const panel = $('panel-reveal');
   const display = gameMode(game) === MODE_DISPLAY;
   const pending = reveal.correct === null; // display mode, not marked yet
+  const timeUp = reveal.timedOut ? "Time's up. " : ''; // the answer timer ended this question (SCHEMA 4.27)
   panel.classList.toggle('correct', reveal.correct === true);
   panel.classList.toggle('wrong', reveal.correct === false);
   if (display) {
     // Correct / Wrong are the players' own marks (SCHEMA 4.24): no automatic verdict, no "You answered", no overrule buttons
-    $('reveal-title').textContent = pending ? 'The answer' : (reveal.correct ? 'Marked correct' : 'Marked wrong');
+    $('reveal-title').textContent = timeUp + (pending ? 'The answer' : (reveal.correct ? 'Marked correct' : 'Marked wrong'));
     $('display-marks').hidden = false;
     $('btn-mark-correct').setAttribute('aria-pressed', String(reveal.correct === true));
     $('btn-mark-wrong').setAttribute('aria-pressed', String(reveal.correct === false));
     $('btn-override-correct').hidden = true;
     $('btn-override-wrong').hidden = true;
   } else {
-    $('reveal-title').textContent = reveal.overruled
+    $('reveal-title').textContent = timeUp + (reveal.overruled
       ? `${reveal.correct ? 'Correct' : 'Wrong'} (overruled)`
-      : (reveal.correct ? 'Correct!' : 'Not quite.');
+      : (reveal.correct ? 'Correct!' : 'Not quite.'));
     $('display-marks').hidden = true;
     // the players can overrule the automatic check once per reveal; pressing the other button flips it back
     $('btn-override-correct').hidden = reveal.correct;
@@ -896,6 +1060,7 @@ function onContinue() {
   turn = null;
   reveal = null;
   builtQuestionKey = null;
+  clearTimerLive();
   if (isGameOver(game)) {
     finishGame();
   } else {
@@ -904,6 +1069,66 @@ function onContinue() {
     renderPlayers();
     announce(`${game.players[game.currentPlayer].name}'s turn`);
   }
+}
+
+// ---- answer timer (SCHEMA 4.27) ----
+
+const qTimer = createTimer({ onTick: renderTimer, onExpire: onTimerExpire });
+
+function renderTimer(snap, milestone) {
+  $('timer-text').textContent = snap.text;
+  $('timer-fill').style.transform = `scaleX(${snap.fraction})`;
+  $('q-timer').classList.toggle('urgent', snap.urgent);
+  // announced only at 30 s, 10 s and 0, not every second
+  if (milestone !== null) $('timer-live').textContent = milestoneMessage(milestone);
+}
+
+function stopTimer() {
+  qTimer.stop();
+  timerKey = null;
+  $('q-timer').hidden = true;
+  $('q-timer').classList.remove('urgent');
+  $('btn-timer-start').hidden = true;
+  // #timer-live is not cleared here: "Time's up" is set just before the timer is stopped and must stay to be announced
+}
+
+// Starts the countdown for the question on screen. The announcement text of an earlier run is cleared first, so the same
+// words ("30 s left") are announced again.
+function startTimer() {
+  clearTimerLive();
+  qTimer.start();
+}
+
+function clearTimerLive() {
+  $('timer-live').textContent = '';
+}
+
+// Called whenever a screen is drawn. Type mode: the countdown starts by itself the first time a question is on screen.
+// Display mode: a Start timer button, and the countdown once it is pressed. Nothing at all with the timer off.
+function syncTimer(st) {
+  if (!game || !gameTimer(game) || st !== 'question') { stopTimer(); return; }
+  const key = `${gameToken}:${turn.categoryId}:${turn.iso3}`;
+  const fresh = timerKey !== key;
+  if (fresh) { stopTimer(); timerKey = key; }
+  if (gameMode(game) === MODE_DISPLAY) {
+    $('btn-timer-start').hidden = qTimer.running;
+    $('q-timer').hidden = !qTimer.running;
+  } else {
+    $('q-timer').hidden = false;
+    if (fresh) startTimer();
+  }
+}
+
+function onTimerStart() {
+  if (!game || stage() !== 'question' || gameMode(game) !== MODE_DISPLAY || !gameTimer(game) || qTimer.running) return;
+  startTimer();
+  syncTimer('question');
+  $('btn-submit').focus(); // the Start timer button has just turned into the countdown
+}
+
+function onTimerExpire() {
+  if (!game || stage() !== 'question') return;
+  submitAnswer(true);
 }
 
 // ---- players panel ----
@@ -956,7 +1181,7 @@ function renderPlayers() {
 // ---------------------------------------------------------------------------
 
 const END_TEXT = {
-  'pool-empty': 'Every country has been won.',
+  'pool-empty': 'Every country has been won.', // with a region filter renderResults says "in the chosen regions"
   'no-categories': 'Every player has used up all their categories.',
   'all-voted': 'All players voted to end the game.',
 };
@@ -964,6 +1189,7 @@ const END_TEXT = {
 function finishGame() {
   clearSave();
   gameToken++;
+  stopTimer();
   renderResults();
   showScreen('results');
   focusSoon($('results-title'));
@@ -971,7 +1197,14 @@ function finishGame() {
 
 function renderResults() {
   const rows = ranking(game);
-  $('results-reason').textContent = END_TEXT[endReason(game)] || 'The game is over.';
+  const reason = endReason(game);
+  $('results-reason').textContent = reason === 'pool-empty' && filtersOf(game).regions !== null
+    ? 'Every country in the chosen regions has been won.'
+    : (END_TEXT[reason] || 'The game is over.');
+  const summary = filterSummary(game);
+  const dropped = droppedNoteText();
+  $('results-filters').textContent = summary ? `Played with: ${summary}.${dropped ? ' ' + dropped : ''}` : '';
+  $('results-filters').hidden = !summary;
   const top = rows.filter((r) => r.rank === 1);
   let winner;
   if (top[0].count === 0) winner = 'Nobody won a country.';
@@ -1019,10 +1252,11 @@ function setMapFilter(selected) {
 // ---- full screen (SCHEMA 4.25): the Empires block goes full screen with the Fullscreen API, or a fixed overlay when the
 // browser has none for ordinary elements (iPhone Safari). Focus goes to "Exit full screen" and back to "Full screen". ----
 
-function onZoomChange(z) {
+// atHome: the view is the one the map opened on (the whole map, or the chosen regions of a filtered game)
+function onZoomChange(z, atHome = z <= MIN_ZOOM + 1e-6) {
   $('zoom-in').setAttribute('aria-disabled', String(z >= MAX_ZOOM - 1e-6));
   $('zoom-out').setAttribute('aria-disabled', String(z <= MIN_ZOOM + 1e-6));
-  $('zoom-reset').setAttribute('aria-disabled', String(z <= MIN_ZOOM + 1e-6));
+  $('zoom-reset').setAttribute('aria-disabled', String(atHome));
 }
 
 function enterFsUi(mode) {
@@ -1037,7 +1271,7 @@ function enterFsUi(mode) {
   $('fs-enter').hidden = true;
   $('fs-exit').hidden = false;
   if (empireMap) empireMap.setFullscreen(true);
-  onZoomChange(1);
+  if (empireMap) onZoomChange(empireMap.getZoom(), empireMap.atHome()); else onZoomChange(1);
   $('fs-exit').focus();
 }
 
@@ -1051,6 +1285,7 @@ function exitFsUi() {
   $('fs-enter').hidden = false;
   $('fs-exit').hidden = true;
   if (empireMap) empireMap.setFullscreen(false);
+  if (empireMap) onZoomChange(empireMap.getZoom(), empireMap.atHome());
   $('fs-enter').focus();
 }
 
@@ -1094,6 +1329,10 @@ async function renderEmpires() {
   $('fs-enter').disabled = true;
   if (empireMap) { empireMap.destroy(); empireMap = null; }
   mapFilter = FILTER_ALL;
+  const scopeNote = $('empires-scope');
+  const scopeRegions = filtersOf(game).regions;
+  scopeNote.textContent = scopeRegions ? `The game was played in ${scopeRegions.join(', ')}. The other countries are dimmed.` : '';
+  scopeNote.hidden = !scopeRegions;
   const bar = $('empires-filter');
   bar.replaceChildren();
   const mk = (value, kids) => {
@@ -1109,7 +1348,15 @@ async function renderEmpires() {
   try {
     const wm = await loadWorldMap();
     if (token !== empiresToken) return;
-    empireMap = createEmpireMap(box, { worldmap: wm, players: game.players, nameOf: (iso3) => countries[iso3].name, statusOf: (iso3) => statusNote(countries[iso3]), onZoom: onZoomChange });
+    // A region filter (SCHEMA 4.26): the map opens on the chosen regions, and the countries outside them are dimmer.
+    const regions = filtersOf(game).regions;
+    const isos = Object.keys(countries);
+    const outside = regions ? new Set(isos.filter((iso3) => !inScope(game, iso3))) : null;
+    const frame = regions ? framingView(wm, isos.filter((iso3) => inScope(game, iso3))) : null;
+    empireMap = createEmpireMap(box, {
+      worldmap: wm, players: game.players, nameOf: (iso3) => countries[iso3].name, statusOf: (iso3) => statusNote(countries[iso3]),
+      onZoom: onZoomChange, outside, frame, scope: regions ? regions.join(', ') : '',
+    });
     empireMap.setFilter(mapFilter);
     $('fs-enter').disabled = false;
   } catch (err) {
@@ -1165,6 +1412,7 @@ async function init() {
   catById = Object.fromEntries(categories.map((c) => [c.id, c]));
   $('load-message').hidden = true;
 
+  initSetupFilters();
   catWheel = createWheel($('canvas-cat'));
 
   $('btn-add-player').addEventListener('click', () => {
@@ -1173,6 +1421,12 @@ async function init() {
     setupColours.push(randomUnusedColour(setupColours));
     renderSetup(setupNames.length - 1);
   });
+  $('opt-cats').addEventListener('change', () => onFilterToggle('catsOn', 'opt-cats', 'cats-panel'));
+  $('opt-regions').addEventListener('change', () => onFilterToggle('regsOn', 'opt-regions', 'regions-panel'));
+  $('cats-all').addEventListener('click', () => onFilterAll(setupFilters.cats, allCategoryIds(), 'cats-list'));
+  $('cats-none').addEventListener('click', () => onFilterNone(setupFilters.cats, 'cats-list'));
+  $('regions-all').addEventListener('click', () => onFilterAll(setupFilters.regs, REGIONS, 'regions-list'));
+  $('regions-none').addEventListener('click', () => onFilterNone(setupFilters.regs, 'regions-list'));
   $('setup-form').addEventListener('submit', onSetupSubmit);
   $('btn-resume').addEventListener('click', resumeSaved);
   $('btn-discard').addEventListener('click', () => {
@@ -1183,6 +1437,10 @@ async function init() {
   });
   $('btn-spin').addEventListener('click', onSpin);
   $('answer-form').addEventListener('submit', onAnswerSubmit);
+  $('btn-timer-start').addEventListener('click', onTimerStart);
+  $('opt-timer').addEventListener('change', () => { setupTimer = $('opt-timer').checked; });
+  // a background tab may throttle the poll: look at the real time as soon as the tab is back
+  document.addEventListener('visibilitychange', () => qTimer.check());
   $('btn-continue').addEventListener('click', onContinue);
   $('btn-override-correct').addEventListener('click', () => onOverride(true));
   $('btn-override-wrong').addEventListener('click', () => onOverride(false));
@@ -1198,7 +1456,10 @@ async function init() {
   zoomBtn('zoom-reset', () => empireMap.resetZoom());
   $('btn-new-game').addEventListener('click', onNewGame);
   $('btn-results-new').addEventListener('click', onNewGame);
-  $('btn-play-again').addEventListener('click', () => startGame(game.players.map((p) => p.name), gameMode(game), game.players.map((p) => p.colour)));
+  $('btn-play-again').addEventListener('click', () => {
+    const f = filtersOf(game); // the same regions and categories again
+    startGame(game.players.map((p) => p.name), gameMode(game), game.players.map((p) => p.colour), { regions: f.regions, categories: f.categories }, gameTimer(game));
+  });
 
   goToSetup();
   focusSoon(null);

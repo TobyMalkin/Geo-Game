@@ -595,3 +595,35 @@ html.fs-lock { overflow: hidden; }
 .credit-list { list-style: none; padding: 0; margin: 0 0 1rem; }
 .credit-list li { padding: 0.45rem 0; border-top: 1px solid var(--panel-2); overflow-wrap: anywhere; }
 .credit-list .cr-meta { display: block; color: var(--muted); font-size: 0.875rem; }
+
+/* ---- CR-15: optional category and region filters on the setup screen ---- */
+.opt-picker .opt { margin-bottom: 0.25rem; }
+.opt-panel {
+  background: var(--panel-2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin: 0.25rem 0 0.75rem;
+}
+.opt-panel[hidden] { display: none; }
+.opt-panel fieldset { margin: 0; }
+.opt-count { margin: 0 0 0.25rem; }
+.opt-tools { margin: 0 0 0.5rem; }
+.opt-tools .btn { min-height: 44px; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 0 1rem; }
+.check-grid .check { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; padding: 0.2rem 0; cursor: pointer; overflow-wrap: anywhere; }
+.check-grid .check input { flex: 0 0 auto; width: 1.4rem; height: 1.4rem; margin: 0; accent-color: var(--accent); }
+.turn-panel .status-note { margin-top: 0.25rem; font-size: 0.875rem; }
+
+/* ---- CR-16: answer timer (SCHEMA 4.27) ----
+   The countdown text and a thin bar that shrinks. The last 10 seconds turn the text and bar to --bad (about 8:1 on --panel);
+   colour is never the only signal: a screen reader hears "10 s left" in #timer-live, and the text weight changes. */
+.timer { margin: 0 0 0.75rem; }
+.timer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.3rem; }
+.timer-label { color: var(--muted); font-weight: 600; }
+.timer-text { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.timer-bar { height: 6px; border-radius: 3px; background: #0d1017; border: 1px solid var(--border); overflow: hidden; }
+.timer-fill { height: 100%; width: 100%; background: var(--accent); transform-origin: left center; }
+.timer.urgent .timer-text { color: var(--bad); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.timer.urgent .timer-fill { background: var(--bad); }
+.timer-opt { margin-top: 0.25rem; }

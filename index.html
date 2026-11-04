@@ -17,6 +17,7 @@
   <div class="brand">
     <h1>Geo Game</h1>
     <span id="mode-label" class="mode-label" hidden></span>
+    <span id="filter-label" class="mode-label" hidden></span>
   </div>
   <button type="button" id="btn-new-game" class="btn secondary" hidden>New game</button>
 </header>
@@ -66,6 +67,48 @@
             <input type="radio" name="answer-mode" id="mode-display" value="display" aria-describedby="mode-display-hint">
             <span><span class="radio-title">Display answers (couch play)</span><span id="mode-display-hint" class="hint">Say your answer out loud, then reveal it and mark it right or wrong.</span></span>
           </label>
+          <label class="radio timer-opt" for="opt-timer">
+            <input type="checkbox" id="opt-timer" aria-describedby="opt-timer-hint" checked>
+            <span><span class="radio-title">Answer timer (1 minute)</span><span id="opt-timer-hint" class="hint">Type answers: 60 seconds start when the question appears. Display answers: a Start timer button.</span></span>
+          </label>
+        </fieldset>
+        <fieldset class="mode-picker opt-picker">
+          <legend>Limit the game (optional)</legend>
+          <div class="opt">
+            <label class="radio" for="opt-cats">
+              <input type="checkbox" id="opt-cats" aria-controls="cats-panel" aria-expanded="false" aria-describedby="opt-cats-hint">
+              <span><span class="radio-title">Choose categories</span><span id="opt-cats-hint" class="hint">Play with only some of the 25 categories.</span></span>
+            </label>
+            <div id="cats-panel" class="opt-panel" hidden>
+              <fieldset>
+                <legend>Categories to include</legend>
+                <p id="cats-count" class="hint opt-count" aria-live="polite"></p>
+                <div class="btn-row opt-tools">
+                  <button type="button" id="cats-all" class="btn secondary">Select all</button>
+                  <button type="button" id="cats-none" class="btn secondary">Select none</button>
+                </div>
+                <div id="cats-list" class="check-grid"></div>
+              </fieldset>
+            </div>
+          </div>
+          <div class="opt">
+            <label class="radio" for="opt-regions">
+              <input type="checkbox" id="opt-regions" aria-controls="regions-panel" aria-expanded="false" aria-describedby="opt-regions-hint">
+              <span><span class="radio-title">Choose regions</span><span id="opt-regions-hint" class="hint">Play with only some of the continents, for example just Europe.</span></span>
+            </label>
+            <div id="regions-panel" class="opt-panel" hidden>
+              <fieldset>
+                <legend>Regions to include</legend>
+                <p id="regions-count" class="hint opt-count" aria-live="polite"></p>
+                <div class="btn-row opt-tools">
+                  <button type="button" id="regions-all" class="btn secondary">Select all</button>
+                  <button type="button" id="regions-none" class="btn secondary">Select none</button>
+                </div>
+                <div id="regions-list" class="check-grid"></div>
+              </fieldset>
+            </div>
+          </div>
+          <p id="filter-error" class="error" role="alert"></p>
         </fieldset>
         <div class="btn-row">
           <button type="submit" id="btn-start" class="btn primary big">Start game</button>
@@ -81,6 +124,7 @@
         <div class="panel turn-panel">
           <h2 id="turn-title" tabindex="-1"></h2>
           <p id="turn-sub" class="muted"></p>
+          <p id="turn-dropped" class="status-note" hidden></p>
         </div>
 
         <div id="panel-spin" class="panel">
@@ -98,12 +142,21 @@
           <p id="q-status" class="status-note" hidden></p>
           <div id="q-outline" class="outline-box" hidden></div>
           <h3 id="q-prompt"></h3>
+          <div id="q-timer" class="timer" hidden>
+            <div class="timer-head">
+              <span class="timer-label">Time left</span>
+              <span id="timer-text" class="timer-text" role="timer">1:00</span>
+            </div>
+            <div class="timer-bar" aria-hidden="true"><div id="timer-fill" class="timer-fill"></div></div>
+          </div>
+          <p id="timer-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
           <form id="answer-form" novalidate>
             <div id="q-inputs"></div>
             <p id="q-hint" class="hint"></p>
             <p id="q-error" class="error" role="alert"></p>
             <div class="btn-row">
               <button type="submit" id="btn-submit" class="btn primary big">Submit answer</button>
+              <button type="button" id="btn-timer-start" class="btn secondary big" hidden>Start timer</button>
             </div>
           </form>
         </div>
@@ -142,6 +195,7 @@
     <div class="panel">
       <h2 id="results-title" tabindex="-1">Game over</h2>
       <p id="results-reason"></p>
+      <p id="results-filters" class="muted" hidden></p>
       <p id="results-winner" class="winner"></p>
       <section id="empires" class="empires" aria-labelledby="empires-title">
         <div class="empires-head">
@@ -165,6 +219,7 @@
           </div>
         </div>
         <p class="muted small empires-hint">Hover or tap a country to see who owns it. The lists below name every country.</p>
+        <p id="empires-scope" class="muted small empires-hint" hidden></p>
         <p class="muted small fs-hint">Scroll or pinch to zoom, drag to move. Hover or tap a country to see who owns it.</p>
         <p class="muted small fs-turn">Turn your phone sideways for a bigger map</p>
       </section>
