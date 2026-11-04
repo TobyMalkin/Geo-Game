@@ -174,10 +174,10 @@ function splitPieces(input) {
 const SUFFIX_CATEGORIES = new Set(['population', 'gdpPerCapita', 'area']);
 const SUFFIX_EXP = { k: 3, m: 6, bn: 9 };
 
-function parsePlainNumber(text, allowSuffix) {
+function parsePlainNumber(text, allowSuffix, baseExp = 0) {
   let t = String(text ?? '').trim().toLowerCase();
   t = t.replace(/^\p{Sc}\s*/u, '').replace(/\s*%$/, '').trim();
-  let exp = 0;
+  let exp = baseExp;
   if (allowSuffix) {
     const m = t.match(/^(.*?)\s*(bn|k|m)$/);
     if (m) {
@@ -247,8 +247,23 @@ export function parseNumber(text, categoryId) {
   if (categoryId === 'maleHeight') return parseHeight(text);
   if (categoryId === 'flightTime') return parseFlightTime(text);
   if (categoryId === 'highestPoint') {
-    // metres: a plain number, an optional unit word or letter after it ("4806", "4,806 m", "4806 metres"); no k / m / bn suffixes
-    return parsePlainNumber(String(text ?? '').trim().toLowerCase().replace(/\s*(?:metres|meters|metre|meter|m)$/, ''), false);
+    // metres (CR-18): a plain number with an optional unit after it ("4806", "4,806 m", "4806 metres"); "k" means thousands of
+    // metres ("3k", "3.4k", "3,4k", "3.4k m") and "km" / "kilometres" too ("3.4km"); "m" is never millions, no "bn"
+    let t = String(text ?? '').trim().toLowerCase();
+    let exp = 0;
+    const km = t.match(/^(.*?)\s*(?:kilometres|kilometers|kilometre|kilometer|km)$/);
+    if (km) {
+      t = km[1];
+      exp = 3;
+    } else {
+      t = t.replace(/\s*(?:metres|meters|metre|meter|m)$/, '');
+      const k = t.match(/^(.*?)\s*k$/);
+      if (k) {
+        t = k[1];
+        exp = 3;
+      }
+    }
+    return parsePlainNumber(t, false, exp);
   }
   if (categoryId === 'militaryRank') {
     const t = String(text ?? '').trim();

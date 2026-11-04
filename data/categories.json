@@ -2,7 +2,7 @@
   {
     "id": "languages",
     "label": "Languages",
-    "prompt": "Name 2 languages of {country}: its main language and the most common other mother tongue. You need both.",
+    "prompt": "Name the 2 most spoken languages of {country}. You need both.",
     "type": "text-all",
     "n": 2
   },

@@ -47,7 +47,8 @@ const ITEM_NAMES = {
 };
 
 function numericInputMode(category) {
-  if (category.id === 'militaryRank' || category.id === 'highestPoint') return 'numeric';
+  if (category.id === 'militaryRank') return 'numeric';
+  // highestPoint takes a "k" (1.2k, CR-18), which a phone's number pad cannot type, so it uses the full keyboard like the other suffix categories
   if (category.id === 'lifeExpectancy' || category.id === 'homicideRate') return 'decimal';
   return 'text'; // k / m / bn suffixes, feet and inches and h:mm need a full keyboard
 }
@@ -68,7 +69,7 @@ function hintFor(category) {
     case 'militaryRank':
       return 'Type a whole number from 1 to 197.';
     case 'highestPoint':
-      return 'Type the height in metres, for example 1234.';
+      return 'Type the height in metres, for example 1234 or 1.2k.';
     case 'nationalSport':
       return 'Some countries have two national sports. Naming either one is correct.';
     case 'languages':
