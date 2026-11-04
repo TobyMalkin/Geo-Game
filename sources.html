@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#11141b">
+<title>Data sources - Geo Game</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="brand"><h1>Geo Game</h1></div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="panel doc">
+    <a class="back" href="./">Back to the game</a>
+    <h2>Data sources</h2>
+    <p><strong>Some answers are estimates and may be imprecise.</strong> Where a source had no figure for a country, or none that could be checked, the value is an estimate. If an answer looks wrong, the game lets the players overrule the check during play.</p>
+    <p>The code is under the MIT licence. The data comes from the third-party sources below. The same list, with more detail, is in <code>DATA-LICENSES.md</code> in the project repository.</p>
+
+    <dl>
+      <dt>mledoze/countries</dt>
+      <dd>Used for: country names, ISO codes, capital, currency, native name, area, internet domain, land borders and region. Licence: <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database Licence (ODbL) 1.0</a>. The combined country database in <code>data/countries.json</code> is a derived database and is shared under the same licence. Source: <a href="https://github.com/mledoze/countries">github.com/mledoze/countries</a></dd>
+
+      <dt>World Bank World Development Indicators</dt>
+      <dd>Used for: population (SP.POP.TOTL), GDP per capita (NY.GDP.PCAP.CD), life expectancy (SP.DYN.LE00.IN) and homicide rate (VC.IHR.PSRC.P5). Licence: <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Source: <a href="https://data.worldbank.org/">data.worldbank.org</a></dd>
+
+      <dt>Our World in Data and NCD-RisC</dt>
+      <dd>Used for: average male height (NCD-RisC, 1996 birth cohort, via Our World in Data) and a few homicide rates (UNODC data via Our World in Data). Licence: <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Source: <a href="https://ourworldindata.org/">ourworldindata.org</a></dd>
+
+      <dt>UNODC</dt>
+      <dd>Used for: homicide rates the World Bank does not list, via Our World in Data. United Nations Office on Drugs and Crime, <a href="https://dataunodc.un.org/">dataunodc.un.org</a>.</dd>
+
+      <dt>Natural Earth</dt>
+      <dd>Used for: country outlines and shapes (simplified), via the datasets/geo-countries repository. Licence: public domain. Source: <a href="https://www.naturalearthdata.com/">naturalearthdata.com</a></dd>
+
+      <dt>Global Firepower 2026</dt>
+      <dd>Used for: military ranking. The rankings are credited to <a href="https://www.globalfirepower.com/">globalfirepower.com</a> and reproduced for a non-commercial quiz. Countries it does not rank have an estimated place.</dd>
+
+      <dt>Wikipedia</dt>
+      <dd>Used for: some text facts such as national sports, highest points, national animals, dishes, landmarks and alternative names. Licence: <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. Source: <a href="https://en.wikipedia.org/">en.wikipedia.org</a></dd>
+
+      <dt>Other public sources</dt>
+      <dd>Pew Research Center (religion), the WHO Global status report on alcohol and health (drink shares, via Wikipedia), the Observatory of Economic Complexity (main exports), UNESCO (landmarks) and national statistics offices. The source of each value is recorded in the <code>sources</code> field of <code>data/countries.json</code>.</dd>
+
+      <dt>Wikimedia Commons photos</dt>
+      <dd>Used for: portraits, dishes, landmarks and drinks shown after an answer. Each photo keeps its own licence, author and file page, listed on the <a href="credits.html">image credits page</a>.</dd>
+    </dl>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#11141b">
+<title>Image credits - Geo Game</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="brand"><h1>Geo Game</h1></div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="panel doc">
+    <a class="back" href="./">Back to the game</a>
+    <h2>Image credits</h2>
+    <p>Portraits, dish photos, landmark photos and drink photos shown in the answer reveals come from Wikimedia Commons and are reduced to thumbnails. Each image keeps its own licence. The file page link names the author and the licence terms. See also the <a href="sources.html">data sources</a>.</p>
+    <label for="credit-filter">Filter by name, country code, author or licence</label>
+    <input id="credit-filter" class="credit-filter" type="search" autocomplete="off" disabled>
+    <p id="credit-status" role="status" class="muted">Loading credits...</p>
+    <ul id="credit-list" class="credit-list"></ul>
+    <noscript><p>This page needs JavaScript. The same list is in <a href="data/images/CREDITS.md">data/images/CREDITS.md</a>.</p></noscript>
+  </div>
+</main>
+<script type="module" src="js/credits.js"></script>
+</body>
+</html>

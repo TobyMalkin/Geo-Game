@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#11141b">
+<meta name="description" content="A same-screen geography quiz game for 2 to 8 players: spin a category, spin a country, answer, and collect countries.">
+<title>Geo Game</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="brand">
+    <h1>Geo Game</h1>
+    <span id="mode-label" class="mode-label" hidden></span>
+  </div>
+  <button type="button" id="btn-new-game" class="btn secondary" hidden>New game</button>
+</header>
+
+<main id="main" tabindex="-1">
+  <p id="load-message" class="panel notice" role="status">Loading game data...</p>
+  <p id="load-error" class="panel notice error-box" role="alert" hidden></p>
+
+  <!-- Setup -->
+  <section id="screen-setup" aria-labelledby="setup-title" hidden>
+    <div class="panel">
+      <h2 id="setup-title" tabindex="-1">Who is playing?</h2>
+      <div class="rules">
+        <p>Take turns on one screen. On your turn, spin the category wheel, then spin the country wheel, then answer the question.</p>
+        <ul>
+          <li>A right answer wins you that country. Nobody else can win it afterwards.</li>
+          <li>Right or wrong, that category is used up for you.</li>
+          <li>The game ends when everyone votes to end (checked at the end of a round), when nobody has categories left, or when every country is won.</li>
+          <li>Most countries wins.</li>
+        </ul>
+      </div>
+
+      <div id="resume-box" class="resume" hidden>
+        <p id="resume-text"></p>
+        <div class="btn-row">
+          <button type="button" id="btn-resume" class="btn primary">Resume saved game</button>
+          <button type="button" id="btn-discard" class="btn secondary">Discard it</button>
+        </div>
+      </div>
+
+      <form id="setup-form" novalidate>
+        <fieldset>
+          <legend>Players (2 to 8)</legend>
+          <div id="player-fields"></div>
+          <p id="setup-error" class="error" role="alert"></p>
+          <div class="btn-row">
+            <button type="button" id="btn-add-player" class="btn secondary">Add player</button>
+          </div>
+        </fieldset>
+        <fieldset class="mode-picker">
+          <legend>Answer mode</legend>
+          <label class="radio" for="mode-type">
+            <input type="radio" name="answer-mode" id="mode-type" value="type" aria-describedby="mode-type-hint" checked>
+            <span><span class="radio-title">Type answers</span><span id="mode-type-hint" class="hint">Type your answer and it is checked for you.</span></span>
+          </label>
+          <label class="radio" for="mode-display">
+            <input type="radio" name="answer-mode" id="mode-display" value="display" aria-describedby="mode-display-hint">
+            <span><span class="radio-title">Display answers (couch play)</span><span id="mode-display-hint" class="hint">Say your answer out loud, then reveal it and mark it right or wrong.</span></span>
+          </label>
+        </fieldset>
+        <div class="btn-row">
+          <button type="submit" id="btn-start" class="btn primary big">Start game</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Game -->
+  <section id="screen-game" aria-label="Game" hidden>
+    <div class="game-grid">
+      <div class="play">
+        <div class="panel turn-panel">
+          <h2 id="turn-title" tabindex="-1"></h2>
+          <p id="turn-sub" class="muted"></p>
+        </div>
+
+        <div id="panel-spin" class="panel">
+          <p id="spin-category" class="spin-category" hidden></p>
+          <p id="spin-status" class="spin-status" tabindex="-1"></p>
+          <div id="wrap-cat" class="wheel-wrap"><canvas id="canvas-cat" aria-hidden="true"></canvas></div>
+          <div id="wrap-country" class="wheel-wrap" hidden><canvas id="canvas-country" aria-hidden="true"></canvas></div>
+          <div class="btn-row center">
+            <button type="button" id="btn-spin" class="btn primary big">Spin the category wheel</button>
+          </div>
+        </div>
+
+        <div id="panel-question" class="panel" hidden>
+          <p id="q-meta" class="q-meta"></p>
+          <p id="q-status" class="status-note" hidden></p>
+          <div id="q-outline" class="outline-box" hidden></div>
+          <h3 id="q-prompt"></h3>
+          <form id="answer-form" novalidate>
+            <div id="q-inputs"></div>
+            <p id="q-hint" class="hint"></p>
+            <p id="q-error" class="error" role="alert"></p>
+            <div class="btn-row">
+              <button type="submit" id="btn-submit" class="btn primary big">Submit answer</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="panel-reveal" class="panel reveal" hidden>
+          <h3 id="reveal-title" tabindex="-1"></h3>
+          <p id="reveal-status" class="status-note" hidden></p>
+          <p id="reveal-given" class="muted"></p>
+          <p id="reveal-expected"></p>
+          <ul id="reveal-images" class="image-list" hidden></ul>
+          <p id="reveal-also" class="reveal-also muted" hidden></p>
+          <div id="reveal-around" class="rank-around" hidden></div>
+          <p id="reveal-outcome"></p>
+          <div id="display-marks" class="btn-row" role="group" aria-label="Was the answer right?" hidden>
+            <button type="button" id="btn-mark-correct" class="btn secondary big mark" aria-pressed="false">Correct</button>
+            <button type="button" id="btn-mark-wrong" class="btn secondary big mark" aria-pressed="false">Wrong</button>
+          </div>
+          <div class="btn-row">
+            <button type="button" id="btn-continue" class="btn primary big">Next player</button>
+            <button type="button" id="btn-override-correct" class="btn secondary" hidden>Should be correct</button>
+            <button type="button" id="btn-override-wrong" class="btn secondary" hidden>Should be wrong</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="panel players-panel" aria-labelledby="players-title">
+        <h2 id="players-title">Players</h2>
+        <ul id="players-list" class="players"></ul>
+        <p class="muted small">Tick "Vote to end" for a player who wants to stop. The game ends at the end of a round if every player who still has categories has voted.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="screen-results" aria-labelledby="results-title" hidden>
+    <div class="panel">
+      <h2 id="results-title" tabindex="-1">Game over</h2>
+      <p id="results-reason"></p>
+      <p id="results-winner" class="winner"></p>
+      <section id="empires" class="empires" aria-labelledby="empires-title">
+        <div class="empires-head">
+          <h3 id="empires-title">Empires</h3>
+          <button type="button" id="fs-enter" class="btn secondary fs-btn" disabled>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Full screen</span>
+          </button>
+          <button type="button" id="fs-exit" class="btn secondary fs-btn" hidden>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M5 1v4H1M11 1v4h4M15 11h-4v4M1 11h4v4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Exit full screen</span>
+          </button>
+        </div>
+        <div id="empires-filter" class="filter-row" role="group" aria-label="Show the empire of"></div>
+        <div class="empires-stage">
+          <div id="empires-map" class="empires-map"></div>
+          <div class="zoom-ctl" role="group" aria-label="Zoom the map">
+            <button type="button" id="zoom-in" class="btn secondary zoom-btn" aria-label="Zoom in">+</button>
+            <button type="button" id="zoom-out" class="btn secondary zoom-btn" aria-label="Zoom out">&minus;</button>
+            <button type="button" id="zoom-reset" class="btn secondary zoom-btn" aria-label="Reset zoom">Reset</button>
+          </div>
+        </div>
+        <p class="muted small empires-hint">Hover or tap a country to see who owns it. The lists below name every country.</p>
+        <p class="muted small fs-hint">Scroll or pinch to zoom, drag to move. Hover or tap a country to see who owns it.</p>
+        <p class="muted small fs-turn">Turn your phone sideways for a bigger map</p>
+      </section>
+      <ul id="results-list" class="ranking"></ul>
+      <div class="btn-row">
+        <button type="button" id="btn-play-again" class="btn primary big">Play again with the same players</button>
+        <button type="button" id="btn-results-new" class="btn secondary big">New game</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p class="muted small">Portraits, dish, landmark and drink photos come from Wikipedia and Wikimedia Commons under their own licences. <a href="credits.html">Image credits</a></p>
+  <p class="muted small">Some answers are estimates and may be imprecise. <a href="sources.html">Data sources</a></p>
+</footer>
+
+<div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+  <form method="dialog">
+    <h2 id="confirm-title">Start a new game?</h2>
+    <p id="confirm-text">The game in progress will be lost.</p>
+    <div class="btn-row">
+      <button type="submit" value="cancel" id="confirm-cancel" class="btn secondary" autofocus>Keep playing</button>
+      <button type="submit" value="confirm" id="confirm-ok" class="btn danger">Yes, new game</button>
+    </div>
+  </form>
+</dialog>
+
+<noscript><p class="panel notice">This game needs JavaScript.</p></noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

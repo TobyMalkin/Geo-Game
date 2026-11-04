@@ -1,0 +1,175 @@
+[
+  {
+    "id": "languages",
+    "label": "Languages",
+    "prompt": "Name 2 languages of {country}: its main language and the most common other mother tongue. You need both.",
+    "type": "text-all",
+    "n": 2
+  },
+  {
+    "id": "population",
+    "label": "Population",
+    "prompt": "What is the population of {country}? (within 10%)",
+    "type": "number-pct",
+    "tolerance": 0.10,
+    "unit": "people"
+  },
+  {
+    "id": "gdpPerCapita",
+    "label": "GDP per capita",
+    "prompt": "What is the GDP per capita of {country}, in US dollars? (within 10%)",
+    "type": "number-pct",
+    "tolerance": 0.10,
+    "unit": "USD"
+  },
+  {
+    "id": "capital",
+    "label": "Capital",
+    "prompt": "What is the capital of {country}?",
+    "type": "text-one"
+  },
+  {
+    "id": "lifeExpectancy",
+    "label": "Life expectancy",
+    "prompt": "What is the average life expectancy in {country}, in years? (within 2 years)",
+    "type": "number-abs",
+    "tolerance": 2,
+    "unit": "years"
+  },
+  {
+    "id": "landmarks",
+    "label": "Landmark",
+    "prompt": "Name a famous landmark in {country}.",
+    "type": "text-one"
+  },
+  {
+    "id": "neighbours",
+    "label": "Neighbours",
+    "prompt": "Name 3 countries that border {country}. If it has fewer than 3 land borders, name its borders plus the nearest countries (by distance from its border or coast) to make 3.",
+    "type": "text-any-n",
+    "n": 3
+  },
+  {
+    "id": "currency",
+    "label": "Currency",
+    "prompt": "What is the name of the currency of {country}?",
+    "type": "text-one"
+  },
+  {
+    "id": "nativeName",
+    "label": "Native name",
+    "prompt": "What do the people of {country} call their country in their own language?",
+    "type": "text-one"
+  },
+  {
+    "id": "nationalAnimal",
+    "label": "National animal",
+    "prompt": "What is the national animal of {country}?",
+    "type": "text-one"
+  },
+  {
+    "id": "flagColours",
+    "label": "Flag colours",
+    "prompt": "Name the colours on the flag of {country} (up to 3). Tick \"No colour\" for any row you don't need.",
+    "type": "colours",
+    "n": 3
+  },
+  {
+    "id": "famousPeople",
+    "label": "Famous person",
+    "prompt": "Name a famous person from {country}.",
+    "type": "text-one"
+  },
+  {
+    "id": "maleHeight",
+    "label": "Average male height",
+    "prompt": "What is the average height of an adult man in {country}, in feet and inches? (within 1 inch)",
+    "type": "number-abs",
+    "tolerance": 1,
+    "unit": "inches"
+  },
+  {
+    "id": "homicideRate",
+    "label": "Homicide rate",
+    "prompt": "What is the homicide rate in {country}, per 100,000 people per year? (within 10%, or 0.1 for very low rates)",
+    "type": "number-pct",
+    "tolerance": 0.10,
+    "absFloor": 0.1,
+    "unit": "per 100,000 people"
+  },
+  {
+    "id": "mainExport",
+    "label": "Main export",
+    "prompt": "Name one of the main exports of {country}.",
+    "type": "text-one"
+  },
+  {
+    "id": "outline",
+    "label": "Outline",
+    "prompt": "Which country has this outline?",
+    "type": "outline"
+  },
+  {
+    "id": "area",
+    "label": "Area",
+    "prompt": "What is the total area of {country}, in square kilometres? (within 10%)",
+    "type": "number-pct",
+    "tolerance": 0.10,
+    "unit": "km²"
+  },
+  {
+    "id": "dish",
+    "label": "Dish",
+    "prompt": "Name a dish from {country}.",
+    "type": "text-one"
+  },
+  {
+    "id": "religion",
+    "label": "Religion",
+    "prompt": "What is the most common religion in {country}?",
+    "type": "text-one"
+  },
+  {
+    "id": "flightTime",
+    "label": "Flight time from the UK",
+    "prompt": "How long is the flight from the UK to {country}? (within 30 minutes; enter minutes or h:mm)",
+    "type": "number-abs",
+    "tolerance": 30,
+    "unit": "minutes"
+  },
+  {
+    "id": "domain",
+    "label": "Domain name",
+    "prompt": "What is the internet domain (top-level domain) of {country}?",
+    "type": "text-one"
+  },
+  {
+    "id": "militaryRank",
+    "label": "Military rank",
+    "prompt": "Where does {country} rank for military strength among the 193 UN members, 1 being strongest? (within 5 places)",
+    "type": "number-abs",
+    "tolerance": 5,
+    "unit": "place"
+  },
+  {
+    "id": "alcohol",
+    "label": "Alcohol",
+    "prompt": "What is the most popular alcoholic drink in {country}?",
+    "type": "text-one"
+  },
+  {
+    "id": "nationalSport",
+    "label": "National sport",
+    "prompt": "What is the national sport of {country}?",
+    "type": "text-one"
+  },
+  {
+    "id": "highestPoint",
+    "label": "Highest point",
+    "prompt": "How high is the highest point in {country}, in metres? (within 10%, or 50 m for very low points)",
+    "type": "number-pct",
+    "tolerance": 0.1,
+    "absFloor": 50,
+    "unit": "m"
+  }
+]
