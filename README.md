@@ -33,9 +33,9 @@ then open http://localhost:8000/. (`npx serve`, `php -S localhost:8000` and simi
 
 ## Data
 
-193 UN member states plus four extra states, 25 categories. Some values are estimates and may be imprecise: where a source had no figure, or none that could be checked, the value is an estimate. The source of each value is recorded in the `sources` field of `data/countries.json`.
+193 UN member states plus four extra states, 26 categories. Some values are estimates and may be imprecise: where a source had no figure, or none that could be checked, the value is an estimate. The source of each value is recorded in the `sources` field of `data/countries.json`.
 
-Main sources: mledoze/countries (ODbL 1.0), World Bank WDI (CC BY 4.0), Our World in Data / NCD-RisC (CC BY 4.0), Natural Earth (public domain), Global Firepower 2026 rankings, UNODC, Wikipedia (CC BY-SA 4.0) and Wikimedia Commons photos (individual licences). See [DATA-LICENSES.md](DATA-LICENSES.md) for the full list with licences and attribution, and [data/images/CREDITS.md](data/images/CREDITS.md) for every photo credit.
+Main sources: mledoze/countries (ODbL 1.0), World Bank WDI (CC BY 4.0), Our World in Data / NCD-RisC (CC BY 4.0), Natural Earth (public domain), flag-icons (MIT), Global Firepower 2026 rankings, UNODC, Wikipedia (CC BY-SA 4.0) and Wikimedia Commons photos (individual licences). See [DATA-LICENSES.md](DATA-LICENSES.md) for the full list with licences and attribution, and [data/images/CREDITS.md](data/images/CREDITS.md) for every photo credit.
 
 ## Licences
 

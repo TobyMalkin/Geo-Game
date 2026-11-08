@@ -37,6 +37,13 @@ The game code is under the MIT licence (see LICENSE). The data in `data/` and th
 - Used for: country outlines and the world map, simplified (obtained through the datasets/geo-countries repository)
 - Notes: No attribution is required; it is given here anyway. The shapes are simplified and are not authoritative for borders.
 
+## flag-icons
+
+- Source: <https://github.com/lipis/flag-icons>
+- Licence: [MIT](https://github.com/lipis/flag-icons/blob/main/LICENSE)
+- Used for: the flag pictures of the Flag category (version 7.6.0, 4x3 SVG files, minified; one per country in data/flags/)
+- Notes: Copyright (c) 2013 Panayiotis Lipiridis. The MIT licence text ships as data/flags/LICENSE.txt. The pictures are shown as the package draws them and are not authoritative for exact colour shades.
+
 ## Global Firepower 2026
 
 - Source: <https://www.globalfirepower.com/>
@@ -69,4 +76,5 @@ The game code is under the MIT licence (see LICENSE). The data in `data/` and th
 - `data/countries.json`: the combined country database (derived database, ODbL 1.0, built from the sources above).
 - `data/categories.json`: category definitions and prompts (part of the game code, MIT).
 - `data/worldmap.json`, `data/outlines/`: simplified Natural Earth shapes.
+- `data/flags/`: the flag pictures of the Flag category, from the flag-icons package (MIT; its licence text is `data/flags/LICENSE.txt`).
 - `data/images/`: Wikimedia Commons thumbnails with `CREDITS.md` and `CREDITS.json` (author, licence and file page for each one).

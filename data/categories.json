@@ -171,5 +171,11 @@
     "tolerance": 0.1,
     "absFloor": 50,
     "unit": "m"
+  },
+  {
+    "id": "flag",
+    "label": "Flag",
+    "prompt": "Which country has this flag?",
+    "type": "flag"
   }
 ]

@@ -3,12 +3,13 @@
 //
 //   buildQuestion(category, iso3, countries) -> {
 //     categoryId, iso3, type, label,
-//     prompt,          // category prompt with {country} filled in (outline: no country name at all)
-//     showCountry,     // false for outline: the UI must not display the country name before the answer
+//     prompt,          // category prompt with {country} filled in (outline and flag: no country name at all)
+//     showCountry,     // false for outline and flag (hidesCountry): the UI must not display the country name before the answer
 //     countryName,     // the answer country's name (the UI shows it only when showCountry is true)
 //     inputs,          // [{ id, label, inputMode, placeholder }] one entry per answer box
 //     hint,            // short help text, or ''
 //     outlineUrl,      // outline only: path of the outline JSON, otherwise null
+//     flagUrl,         // flag only (CR-22): path of the flag SVG, otherwise null
 //     value,           // stored value for this category (never null)
 //   }
 //   formatExpected(category, value, { countries, iso3 }) -> string   (lists every stored item, never "and N more")
@@ -16,9 +17,28 @@
 //   imageItems(category, value) -> [{ name, image }] | null   famousPeople / dish / landmarks reveal list (image: path or null)
 //   alsoAccepted(category, country) -> string[]   landmarks only: the names of landmarksMore (accepted, shown as text, no photos)
 //   militaryNeighbours(countries, rank) -> [{ rank, iso3, iso2, name }]   rank-1, rank, rank+1 that exist
+//   hidesCountry(category) -> boolean   outline and flag (CR-22): the country is hidden until the reveal
+//   wheelItems(category, iso3s, countries) -> [{ id, label }]   country wheel items; blank labels when the country is hidden
 //   formatRange(category, value) -> string | ''   Display mode: "Accepted range: 1,350 - 1,650 km²" (CR-20; numeric categories with a tolerance)
 
 import { acceptedRange } from './answer.js';
+
+/**
+ * CR-22 (SCHEMA 4.30): categories whose question hides the country (the player has to name it): outline and flag. The one place that
+ * knows which types these are; the wheel labels, the centre result, the country pill, the status note and the announcements follow it.
+ */
+export function hidesCountry(category) {
+  return !!category && (category.type === 'outline' || category.type === 'flag');
+}
+
+/**
+ * The country wheel's items for a category: { id: iso3, label } per country. A category that hides the country (hidesCountry) gets
+ * blank labels, so no name can be read as the slices pass (the UI also draws no centre result for it).
+ */
+export function wheelItems(category, iso3s, countries) {
+  const hide = hidesCountry(category);
+  return iso3s.map((iso3) => ({ id: iso3, label: hide ? '' : countries[iso3].name }));
+}
 
 /** Categories whose reveal lists every stored name with a picture; the value is the per-item data field. */
 const IMAGE_FIELD = { famousPeople: 'portrait', dish: 'photo', landmarks: 'photo', alcohol: 'photo' };
@@ -88,6 +108,7 @@ function hintFor(category) {
     case 'alcohol':
       return 'Name the one most popular alcoholic drink. Only the top drink counts.';
     case 'outline':
+    case 'flag':
       return "Type the country's name.";
     default:
       return '';
@@ -137,6 +158,7 @@ export function buildQuestion(category, iso3, countries) {
     throw new Error(`buildQuestion: ${iso3} has no data for ${category.id} (the game must re-spin)`);
   }
   const isOutline = category.type === 'outline';
+  const hidden = hidesCountry(category);
   const count = inputCount(category, value);
   const inputs = [];
   for (let i = 0; i < count; i++) {
@@ -160,7 +182,7 @@ export function buildQuestion(category, iso3, countries) {
   // sentence. It is stripped here in case categories.json still carries it.
   if (category.id === 'languages') template = template.replace(/\s*\(If it has only one[^)]*\)/i, '');
   if (category.id === 'languages' && count === 1) template = 'Name the main language spoken in {country}.';
-  const prompt = isOutline
+  const prompt = hidden
     ? template.replace(/\{country\}/g, 'this country')
     : template.replace(/\{country\}/g, country.name);
   return {
@@ -169,11 +191,12 @@ export function buildQuestion(category, iso3, countries) {
     type: category.type,
     label: questionLabel(category, value),
     prompt,
-    showCountry: !isOutline,
+    showCountry: !hidden,
     countryName: country.name,
     inputs,
     hint: hintFor(category),
     outlineUrl: isOutline ? value : null,
+    flagUrl: category.type === 'flag' ? value : null,
     value,
   };
 }
@@ -299,7 +322,8 @@ export function formatExpected(category, value, ctx = {}) {
       return value.length > category.n ? `${text} (any ${category.n} are correct)` : text;
     }
 
-    case 'outline': {
+    case 'outline':
+    case 'flag': {
       const country = (ctx.countries || {})[ctx.iso3];
       return country ? country.name : '';
     }

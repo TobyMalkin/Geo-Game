@@ -12,13 +12,13 @@
 // Developer hooks (harmless in play, used by the headless playtest):
 //   ?fast                       short wheel animation and no pause after landing
 //   (the answer timer reads Date.now(); the QA scripts fake it by overriding Date.now in the test browser only)
-//   globalThis.__geoForce       { category: 'outline', country: 'MLT' } makes the next spin land there
+//   globalThis.__geoForce       { category: 'outline' (or 'flag'), country: 'MLT' } makes the next spin land there
 
 import {
   createGame, availableCategories, eligibleCountries, applyResult, overrideResult, setVote, nextPlayer,
   isGameOver, endReason, ranking, gameMode, validMode, applyDisplayResult, canContinue, MODE_TYPE, MODE_DISPLAY,
   PALETTE, colourOf, colourHex, randomColours, randomUnusedColour, changeColour, isColourTaken, fillColours,
-  REGIONS, regionCounts, planGame, parseFilters, filtersOf, filterSummary, inScope, gameTimer, validTimer,
+  REGIONS, defaultCategoryIds, categoriesByLabel, CATEGORY_PACKS, CUSTOM_PACK_ID, packById, matchingPackId, regionCounts, planGame, parseFilters, filtersOf, filterSummary, inScope, gameTimer, validTimer,
   gameSkipSpin, validSkipSpin,
 } from './state.js';
 import { createTimer, milestoneMessage, timeUpAnswer } from './timer.js';
@@ -29,7 +29,7 @@ import { REPORT } from './report-config.js';
 import { isConfigured, buildPayload, sendReport } from './report.js';
 import {
   buildQuestion, questionLabel, formatExpected, listAnd, firstBlank, imageItems, alsoAccepted, militaryNeighbours, displayHint, displayPrompt, statusNote,
-  droppedNotice, formatRange,
+  droppedNotice, formatRange, hidesCountry, wheelItems,
 } from './questions.js';
 
 const SAVE_KEY = 'geogame.save.v1';
@@ -102,8 +102,10 @@ let catWheel = null;
 let countryWheel = null;
 let countryWheelHidden = null;
 let shownOutlineUrl = null;
+let shownFlagUrl = null;   // CR-22: the flag file shown in the question panel
 let builtQuestionKey = null;
 const outlineCache = new Map();
+const flagCache = new Map();   // flag file path -> Promise of a blob: URL (the file path, which holds the iso3, never reaches the DOM)
 let worldmapPromise = null;  // data/worldmap.json, fetched once
 let empireMap = null;        // the drawn results map, { setFilter, destroy }
 let mapFilter = FILTER_ALL;  // 'all' or a player index
@@ -345,15 +347,16 @@ function renderSetup(focusIndex = null, focusId = null, focusRadio = null) {
 
 function allCategoryIds() { return categories.map((c) => c.id); }
 
-// Fills the remembered setup filters with every item ticked, once the data is loaded.
+// Fills the remembered setup filters once the data is loaded: every region ticked, and every category ticked except the ones a
+// default game leaves out (DEFAULT_OFF in state.js, CR-23).
 function initSetupFilters() {
-  setupFilters = { catsOn: false, cats: new Set(allCategoryIds()), regsOn: false, regs: new Set(REGIONS) };
+  setupFilters = { catsOn: false, cats: new Set(defaultCategoryIds(allCategoryIds())), regsOn: false, regs: new Set(REGIONS) };
 }
 
 // Sets the setup filters to what a game used (Play again, resume), so New game pre-fills them.
 function setSetupFromFilters(f) {
   setupFilters = {
-    catsOn: f.categories !== null, cats: new Set(f.categories === null ? allCategoryIds() : f.categories),
+    catsOn: f.categories !== null, cats: new Set(f.categories === null ? defaultCategoryIds(allCategoryIds()) : f.categories),
     regsOn: f.regions !== null, regs: new Set(f.regions === null ? REGIONS : f.regions),
   };
 }
@@ -373,6 +376,59 @@ function filterCountText(n, total, noun) {
 function updateFilterCounts() {
   $('cats-count').textContent = filterCountText(setupFilters.cats.size, categories.length, 'categories');
   $('regions-count').textContent = filterCountText(setupFilters.regs.size, REGIONS.length, 'regions');
+  updatePackButtons();
+}
+
+// ---- category packs (CR-25): shortcut buttons above the checklist; the pack whose set equals the ticks is shown pressed ----
+
+// Whether the A to Z checklist under "Categories" is open. Not saved: it is closed again whenever the page loads or setup is re-entered.
+let catsListOpen = false;
+// The last selection made in this setup visit that matched no pack; the Custom button brings it back (CR-25 amendment 1). Not saved.
+let lastCustom = null;
+
+function updatePackButtons() {
+  const current = matchingPackId(allCategoryIds(), setupFilters.cats);
+  if (current === CUSTOM_PACK_ID) lastCustom = [...setupFilters.cats]; // remembered for the Custom button
+  for (const btn of $('cats-packs').querySelectorAll('button')) btn.setAttribute('aria-pressed', String(btn.dataset.pack === current));
+}
+
+function setCatsListOpen(open) {
+  catsListOpen = open;
+  $('cats-toggle').setAttribute('aria-expanded', String(open));
+  $('cats-list').hidden = !open;
+}
+
+// All, Default (and any later pack), then Custom, then None: Custom goes just before the pack called 'none'.
+function renderPacks() {
+  const button = (id, label) => el('button', { type: 'button', class: 'btn secondary pack', id: `pack-${id}`, 'data-pack': id, 'aria-pressed': 'false', text: label });
+  const buttons = CATEGORY_PACKS.map((p) => button(p.id, p.label));
+  const at = CATEGORY_PACKS.findIndex((p) => p.id === 'none');
+  buttons.splice(at < 0 ? buttons.length : at, 0, button(CUSTOM_PACK_ID, 'Custom'));
+  $('cats-packs').replaceChildren(...buttons);
+}
+
+// Custom: bring back the last custom selection (if there is one) and open the checklist so boxes can be ticked.
+function onCustomPress() {
+  if (lastCustom) {
+    const keep = new Set(lastCustom);
+    setupFilters.cats.clear();
+    keep.forEach((v) => setupFilters.cats.add(v));
+    $('filter-error').textContent = '';
+    for (const box of $('cats-list').querySelectorAll('input')) box.checked = keep.has(box.value);
+    updateFilterCounts();
+  }
+  setCatsListOpen(true);
+}
+
+function onPackPress(id) {
+  const pack = packById(id);
+  if (!pack) return;
+  const ids = new Set(pack.ids(allCategoryIds()));
+  setupFilters.cats.clear();
+  ids.forEach((v) => setupFilters.cats.add(v));
+  $('filter-error').textContent = '';
+  for (const box of $('cats-list').querySelectorAll('input')) box.checked = ids.has(box.value);
+  updateFilterCounts();
 }
 
 // One filter block: the checkbox that opens the panel, and the checkbox list inside it.
@@ -397,12 +453,14 @@ function renderFilters() {
   const counts = regionCounts(countries);
   renderFilterBlock({
     toggle: 'opt-cats', panel: 'cats-panel', list: 'cats-list', on: setupFilters.catsOn, chosen: setupFilters.cats, idPrefix: 'cat',
-    items: categories.map((c) => ({ value: c.id, label: c.label })),
+    items: categoriesByLabel(categories).map((c) => ({ value: c.id, label: c.label })), // A to Z; stored lists keep data order (CR-24)
   });
   renderFilterBlock({
     toggle: 'opt-regions', panel: 'regions-panel', list: 'regions-list', on: setupFilters.regsOn, chosen: setupFilters.regs, idPrefix: 'region',
     items: REGIONS.map((r) => ({ value: r, label: `${r} (${counts[r]})` })),
   });
+  renderPacks();
+  setCatsListOpen(catsListOpen);
   updateFilterCounts();
 }
 
@@ -449,6 +507,8 @@ function goToSetup() {
   setupNames = lastNames ? lastNames.slice() : ['', ''];
   setupColours = lastColours && lastNames && lastColours.length === lastNames.length ? lastColours.slice() : randomColours(setupNames.length);
   openPicker = null;
+  lastCustom = null;
+  catsListOpen = false; // CR-25: the category checklist starts collapsed each time setup opens
   $('setup-error').textContent = '';
   renderSetup();
   renderResumeBox();
@@ -478,8 +538,9 @@ async function onSetupSubmit(e) {
   if (!plan.ok) {
     $('filter-error').textContent = plan.message;
     // the panel that needs a tick is open (the error comes from its checkbox being on); put focus on its first box
-    const first = plan.error === 'categories' ? $('cats-list') : plan.error === 'regions' ? $('regions-list') : null;
-    focusSoon(first ? first.querySelector('input') : $('opt-cats').checked ? $('cats-all') : $('regions-all'));
+    // (the category checklist may be collapsed, so then the first pack button gets focus instead)
+    const first = plan.error === 'categories' ? (catsListOpen ? $('cats-list') : null) : plan.error === 'regions' ? $('regions-list') : null;
+    focusSoon(first ? first.querySelector('input') : plan.error === 'categories' || $('opt-cats').checked ? $('pack-all') : $('regions-all'));
     return;
   }
   // Starting overwrites the saved game, so ask first when there is a usable one.
@@ -568,14 +629,13 @@ function categoryItems() {
 }
 
 function countryItems(cat) {
-  const hide = cat.type === 'outline';
-  return eligibleCountries(game, cat.id).map((iso3) => ({ id: iso3, label: hide ? '' : countries[iso3].name }));
+  return wheelItems(cat, eligibleCountries(game, cat.id), countries); // outline and flag (CR-22): blank labels, the country is not readable from the wheel
 }
 
 function getCountryWheel(hideNames) {
   if (!countryWheel || countryWheelHidden !== hideNames) {
     if (countryWheel) countryWheel.destroy();
-    // outline: no centre label (showResult false) and blank slice labels (see countryItems)
+    // outline and flag: no centre label (showResult false) and blank slice labels (see countryItems)
     countryWheel = createWheel($('canvas-country'), { showResult: !hideNames });
     countryWheelHidden = hideNames;
   }
@@ -623,7 +683,7 @@ function renderGame({ focus = true } = {}) {
     if (focus) focusSoon($('btn-spin'));
   } else if (st === 'country') {
     const cat = catById[turn.categoryId];
-    const hide = cat.type === 'outline';
+    const hide = hidesCountry(cat);
     const items = countryItems(cat);
     $('wrap-cat').hidden = true;
     $('wrap-country').hidden = false;
@@ -684,7 +744,7 @@ async function onSpin() {
       announce(`Category: ${item.label}`);
     } else {
       const cat = catById[turn.categoryId];
-      const hide = cat.type === 'outline';
+      const hide = hidesCountry(cat);
       const items = countryItems(cat);
       const item = await getCountryWheel(hide).spin(items, opts(items, 'country'));
       if (token !== gameToken) return;
@@ -692,7 +752,7 @@ async function onSpin() {
       builtQuestionKey = null;
       if (hide) {
         $('spin-status').textContent = 'A country has been chosen.';
-        announce('A country has been chosen. Its outline is shown next.');
+        announce(`A country has been chosen. Its ${cat.type === 'flag' ? 'flag' : 'outline'} is shown next.`);
       } else {
         $('spin-status').textContent = `Landed on: ${countries[item.id].name}`;
         announce(`Country: ${countries[item.id].name}`);
@@ -717,6 +777,42 @@ async function onSpin() {
 }
 
 // ---- question ----
+
+// CR-22: the flag picture. The file is fetched and shown through a blob: URL so that its path (which holds the country's iso3) is not in
+// the page; the alt text is the same for every flag and does not name the country. Loading and error states like the outline's.
+function loadFlag(url) {
+  if (!flagCache.has(url)) {
+    flagCache.set(url, fetch(url)
+      .then((r) => { if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r.blob(); })
+      .then((b) => URL.createObjectURL(new Blob([b], { type: 'image/svg+xml' })))
+      .catch((e) => { flagCache.delete(url); throw e; }));
+  }
+  return flagCache.get(url);
+}
+
+async function showFlag(url) {
+  const box = $('q-flag');
+  box.hidden = false;
+  if (shownFlagUrl === url && box.querySelector('img')) return;
+  shownFlagUrl = url;
+  box.replaceChildren(el('p', { class: 'muted', text: 'Loading flag...' }));
+  const fail = () => {
+    if (shownFlagUrl !== url) return;
+    flagCache.delete(url);
+    const retry = el('button', { type: 'button', class: 'btn secondary', text: 'Try again' });
+    retry.addEventListener('click', () => { shownFlagUrl = null; showFlag(url); });
+    box.replaceChildren(el('p', { class: 'error', text: 'Could not load the flag.' }), retry);
+  };
+  try {
+    const src = await loadFlag(url);
+    if (shownFlagUrl !== url) return;
+    const img = el('img', { class: 'flag-img', src, alt: 'Flag to identify', width: '640', height: '480', decoding: 'async' });
+    img.addEventListener('error', fail, { once: true });
+    box.replaceChildren(img);
+  } catch {
+    fail();
+  }
+}
 
 async function loadOutline(url) {
   if (!outlineCache.has(url)) outlineCache.set(url, fetchJson(url).catch((e) => { outlineCache.delete(url); throw e; }));
@@ -765,7 +861,7 @@ function renderQuestion(readOnly) {
   } else {
     meta.append(el('span', { class: 'spin-category' }, 'Category: ', el('strong', { text: q.label })));
   }
-  // CR-12: the status note under the country name (not on the outline question, where the country must stay hidden)
+  // CR-12: the status note under the country name (not on the outline or flag question, where the country must stay hidden)
   const qStatus = $('q-status');
   qStatus.textContent = q.showCountry ? statusNote(countries[turn.iso3]) : '';
   qStatus.hidden = !qStatus.textContent;
@@ -773,6 +869,8 @@ function renderQuestion(readOnly) {
 
   if (q.outlineUrl) showOutline(q.outlineUrl);
   else { $('q-outline').hidden = true; $('q-outline').replaceChildren(); shownOutlineUrl = null; }
+  if (q.flagUrl) showFlag(q.flagUrl);
+  else { $('q-flag').hidden = true; $('q-flag').replaceChildren(); shownFlagUrl = null; }
 
   const display = gameMode(game) === MODE_DISPLAY;
   $('answer-form').hidden = readOnly;
@@ -1519,8 +1617,8 @@ async function init() {
   });
   $('opt-cats').addEventListener('change', () => onFilterToggle('catsOn', 'opt-cats', 'cats-panel'));
   $('opt-regions').addEventListener('change', () => onFilterToggle('regsOn', 'opt-regions', 'regions-panel'));
-  $('cats-all').addEventListener('click', () => onFilterAll(setupFilters.cats, allCategoryIds(), 'cats-list'));
-  $('cats-none').addEventListener('click', () => onFilterNone(setupFilters.cats, 'cats-list'));
+  $('cats-packs').addEventListener('click', (e) => { const b = e.target.closest('button[data-pack]'); if (b) { if (b.dataset.pack === CUSTOM_PACK_ID) onCustomPress(); else onPackPress(b.dataset.pack); } });
+  $('cats-toggle').addEventListener('click', () => setCatsListOpen(!catsListOpen));
   $('regions-all').addEventListener('click', () => onFilterAll(setupFilters.regs, REGIONS, 'regions-list'));
   $('regions-none').addEventListener('click', () => onFilterNone(setupFilters.regs, 'regions-list'));
   $('setup-form').addEventListener('submit', onSetupSubmit);

@@ -80,25 +80,24 @@
           <legend>Limit the game (optional)</legend>
           <div class="opt">
             <label class="radio" for="opt-cats">
-              <input type="checkbox" id="opt-cats" aria-controls="cats-panel" aria-expanded="false" aria-describedby="opt-cats-hint">
-              <span><span class="radio-title">Choose categories</span><span id="opt-cats-hint" class="hint">Play with only some of the 25 categories.</span></span>
+              <input type="checkbox" id="opt-cats" aria-controls="cats-panel" aria-expanded="false">
+              <span><span class="radio-title">Choose categories</span></span>
             </label>
             <div id="cats-panel" class="opt-panel" hidden>
               <fieldset>
                 <legend>Categories to include</legend>
+                <p id="cats-packs-label" class="opt-sub">Packs</p>
+                <div id="cats-packs" class="btn-row opt-tools" role="group" aria-labelledby="cats-packs-label"></div>
                 <p id="cats-count" class="hint opt-count" aria-live="polite"></p>
-                <div class="btn-row opt-tools">
-                  <button type="button" id="cats-all" class="btn secondary">Select all</button>
-                  <button type="button" id="cats-none" class="btn secondary">Select none</button>
-                </div>
-                <div id="cats-list" class="check-grid"></div>
+                <button type="button" id="cats-toggle" class="btn secondary disclosure" aria-expanded="false" aria-controls="cats-list"><span>Categories</span><span class="chev" aria-hidden="true"></span></button>
+                <div id="cats-list" class="check-grid" hidden></div>
               </fieldset>
             </div>
           </div>
           <div class="opt">
             <label class="radio" for="opt-regions">
-              <input type="checkbox" id="opt-regions" aria-controls="regions-panel" aria-expanded="false" aria-describedby="opt-regions-hint">
-              <span><span class="radio-title">Choose regions</span><span id="opt-regions-hint" class="hint">Play with only some of the continents, for example just Europe.</span></span>
+              <input type="checkbox" id="opt-regions" aria-controls="regions-panel" aria-expanded="false">
+              <span><span class="radio-title">Choose regions</span></span>
             </label>
             <div id="regions-panel" class="opt-panel" hidden>
               <fieldset>
@@ -145,6 +144,7 @@
           <p id="q-meta" class="q-meta"></p>
           <p id="q-status" class="status-note" hidden></p>
           <div id="q-outline" class="outline-box" hidden></div>
+          <div id="q-flag" class="flag-box" hidden></div>
           <h3 id="q-prompt"></h3>
           <div id="q-timer" class="timer" hidden>
             <div class="timer-head">

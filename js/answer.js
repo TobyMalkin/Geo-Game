@@ -5,8 +5,8 @@
 //   category: entry of categories.json
 //   value:    the country's stored value for that category (must be non-null; the game re-spins nulls)
 //   input:    raw player string, or string[] for multi-input categories
-//   ctx:      { countries, iso3 }  countries = countries.json object (neighbours, outline),
-//                                  iso3 = the answer country (outline)
+//   ctx:      { countries, iso3 }  countries = countries.json object (neighbours, outline, flag),
+//                                  iso3 = the answer country (outline, flag)
 // 'invalid' = the input could not be understood (the UI asks again); it is not a wrong answer.
 
 /** militaryRank is 1..197: the 193 UN member states plus PSE, VAT, TWN and XKX (SCHEMA 1.15). */
@@ -582,9 +582,10 @@ export function checkAnswer(category, value, input, ctx = {}) {
     case 'colours':
       return checkColourRows(category, value, input);
 
-    case 'outline': {
+    case 'outline':
+    case 'flag': { // flag (CR-22, SCHEMA 4.30): the same check as outline, the player names the country
       const country = (ctx.countries || {})[ctx.iso3];
-      if (!country) throw new Error('outline check needs ctx.countries and ctx.iso3');
+      if (!country) throw new Error(category.type + ' check needs ctx.countries and ctx.iso3');
       const text = Array.isArray(input) ? input[0] : input;
       if (normalise(text) === '') return result('invalid', country.name);
       const idx = matchAnswer(text, [{ name: country.name, aliases: country.aliases || [] }], {

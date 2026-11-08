@@ -13,7 +13,7 @@
 //     mode: 'type' | 'display',  // answer mode, fixed for the whole game (SCHEMA 4.24); a state without it is 'type'
 //     filters: { regions: string[] | null, categories: string[] | null, dropped: string[] },
 //                        // optional setup filters (SCHEMA 4.26, CR-15): regions = the chosen regions (null = whole world),
-//                        // categories = the categories every player starts with (null = all of them), dropped = chosen
+//                        // categories = the categories every player starts with (null = every category except DEFAULT_OFF, or, in a save from before CR-23, all of them), dropped = chosen
 //                        // categories that had no data for the pool and were left out; a state without it has no filters
 //     timer: boolean,    // the 60-second answer timer (SCHEMA 4.27, CR-16), default true; a state without it has the timer on
 //     skipSpin: boolean, // both wheels land at once with no animation (SCHEMA 4.29, CR-20), default false; a state without it is false
@@ -146,10 +146,56 @@ export function fillColours(given, n) {
 
 // ---------------------------------------------------------------------------
 // Setup filters (SCHEMA 4.26, CR-15): play with only some categories and/or only some regions.
-// A filters value is { regions: string[] | null, categories: string[] | null }: null = no limit (whole world / all categories).
+// A filters value is { regions: string[] | null, categories: string[] | null }: null = no limit (whole world / the default categories, see DEFAULT_OFF).
 // ---------------------------------------------------------------------------
 
 export const REGIONS = ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania'];
+
+/**
+ * Categories that a default game leaves out (SCHEMA 4.26, CR-23): played only when "Choose categories" is on and they are ticked.
+ * The one place this list lives; the setup screen and planGame both read it.
+ */
+export const DEFAULT_OFF = Object.freeze(['flagColours']);
+
+/** The category ids a game uses when no category choice is made: every id except DEFAULT_OFF, in the given order. */
+export function defaultCategoryIds(allIds) {
+  return allIds.filter((id) => !DEFAULT_OFF.includes(id));
+}
+
+/** The category definitions A to Z by shown label (case-insensitive, locale compare), as a new array: the setup picker's display order (CR-24). The input and stored lists keep data order. */
+export function categoriesByLabel(cats) {
+  return [...cats].sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
+}
+
+/**
+ * Category packs (CR-25): one-press shortcuts in the setup picker that tick a ready-made set of categories. A UI shortcut only:
+ * nothing about a pack is saved, a game stores the ticked ids as before. To add a pack, add one entry here: ids(allIds) returns the
+ * category ids of the pack, given every category id in data order.
+ */
+export const CATEGORY_PACKS = Object.freeze([
+  Object.freeze({ id: 'all', label: 'All', ids: (allIds) => [...allIds] }),
+  Object.freeze({ id: 'default', label: 'Default', ids: defaultCategoryIds }),
+  Object.freeze({ id: 'none', label: 'None', ids: () => [] }),
+]);
+
+/** The pack with this id, or undefined. */
+export function packById(id) {
+  return CATEGORY_PACKS.find((p) => p.id === id);
+}
+
+/** Shown as the selected button when the ticks match no pack. Custom is a UI state, not an entry of CATEGORY_PACKS (CR-25 amendment 1). */
+export const CUSTOM_PACK_ID = 'custom';
+
+/** The id of the first pack whose set of categories equals the ticked ones (order and duplicates ignored), or CUSTOM_PACK_ID ('custom') when none does. */
+export function matchingPackId(allIds, ticked) {
+  const have = new Set(ticked);
+  for (const p of CATEGORY_PACKS) {
+    const want = new Set(p.ids(allIds));
+    if (want.size === have.size && [...want].every((id) => have.has(id))) return p.id;
+  }
+  return CUSTOM_PACK_ID;
+}
+
 export const NO_FILTERS = Object.freeze({ regions: null, categories: null, dropped: Object.freeze([]) });
 
 /** { Africa: n, ... } number of countries per region (every region of REGIONS is a key). */
@@ -169,8 +215,10 @@ const categoryIdOf = (c) => (typeof c === 'string' ? c : c.id);
  * `filters` = { regions, categories } as ticked on the setup screen (null or missing = no limit).
  * Returns { ok: true, pool, categoryIds, filters: { regions, categories, dropped }, dropped } or { ok: false, error, message }
  * where error is 'regions' (none chosen), 'categories' (none chosen) or 'no-data' (every chosen category lacks data for the pool).
- * Unknown region names and category ids are ignored. A choice of all 5 regions is stored as null; a choice of all categories is
+ * Unknown region names and category ids are ignored. A choice of all 5 regions is stored as null; a choice equal to the default categories is
  * stored as null unless some were dropped for having no data, in which case the explicit list that is left is stored.
+ * CR-23: "no category choice" (null) means every category except DEFAULT_OFF; a choice equal to that set is stored as null too, and
+ * a choice that includes a DEFAULT_OFF category (even all of them) is stored as the explicit list.
  */
 export function planGame(countries, categories, filters = null) {
   const allIds = categories.map(categoryIdOf);
@@ -181,12 +229,13 @@ export function planGame(countries, categories, filters = null) {
     if (regions.length === 0) return { ok: false, error: 'regions', message: 'Choose at least one region.' };
     if (regions.length === REGIONS.length) regions = null;
   }
-  let chosen = allIds;
+  const defaults = defaultCategoryIds(allIds);
+  let chosen = defaults;
   let restricted = false;
   if (Array.isArray(f.categories)) {
     chosen = allIds.filter((id) => f.categories.includes(id));
     if (chosen.length === 0) return { ok: false, error: 'categories', message: 'Choose at least one category.' };
-    restricted = chosen.length < allIds.length;
+    restricted = chosen.length !== defaults.length || chosen.some((id, i) => id !== defaults[i]);
   }
   const pool = Object.keys(countries)
     .filter((iso3) => regions === null || regions.includes(countries[iso3].region))

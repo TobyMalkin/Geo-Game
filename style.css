@@ -250,6 +250,29 @@ input[type="text"]:focus-visible { outline: 3px solid var(--focus); outline-offs
   fill: #cfe3ff;
 }
 
+/* CR-22: the flag of the Flag category, 4:3, up to 360 px wide (the panel's width on a 320 px screen). The thin light border keeps flags with
+   white edges (Japan, Finland, ...) visible on the dark panel; the box reserves the picture's height so the page does not jump while it loads. */
+.flag-box {
+  margin: 0 auto 0.75rem;
+  width: min(100%, 360px);
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.flag-box p { margin: 0; text-align: center; }
+.flag-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  border: 1px solid #8a94a8;
+  border-radius: 4px;
+  background: #0d1017;
+}
+
 .reveal { border: 2px solid var(--border); }
 .reveal.correct { border-color: var(--ok); }
 .reveal.wrong { border-color: var(--bad); }
@@ -611,6 +634,14 @@ html.fs-lock { overflow: hidden; }
 .opt-count { margin: 0 0 0.25rem; }
 .opt-tools { margin: 0 0 0.5rem; }
 .opt-tools .btn { min-height: 44px; }
+.opt-sub { margin: 0 0 0.25rem; font-weight: 600; }
+/* CR-25: category packs. The pressed pack is filled and bold (amendment 3: no tick mark); aria-pressed carries it for screen readers. */
+.pack { flex: 1 1 6rem; min-width: 0; overflow-wrap: anywhere; }
+.pack[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+.disclosure { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin: 0 0 0.5rem; text-align: left; }
+.disclosure .chev::before { content: "\25B8"; }
+.disclosure[aria-expanded="true"] .chev::before { content: "\25BE"; }
+.check-grid[hidden] { display: none; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 0 1rem; }
 .check-grid .check { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; padding: 0.2rem 0; cursor: pointer; overflow-wrap: anywhere; }
 .check-grid .check input { flex: 0 0 auto; width: 1.4rem; height: 1.4rem; margin: 0; accent-color: var(--accent); }
