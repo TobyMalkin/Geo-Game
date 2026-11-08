@@ -69,7 +69,11 @@
           </label>
           <label class="radio timer-opt" for="opt-timer">
             <input type="checkbox" id="opt-timer" aria-describedby="opt-timer-hint" checked>
-            <span><span class="radio-title">Answer timer (1 minute)</span><span id="opt-timer-hint" class="hint">Type answers: 60 seconds start when the question appears. Display answers: a Start timer button.</span></span>
+            <span><span class="radio-title">Answer timer (1 minute)</span><span id="opt-timer-hint" class="hint">60 seconds start when the question appears.</span></span>
+          </label>
+          <label class="radio timer-opt" for="opt-skip">
+            <input type="checkbox" id="opt-skip" aria-describedby="opt-skip-hint">
+            <span><span class="radio-title">Skip the spin</span><span id="opt-skip-hint" class="hint">The wheels land straight away.</span></span>
           </label>
         </fieldset>
         <fieldset class="mode-picker opt-picker">
@@ -156,7 +160,6 @@
             <p id="q-error" class="error" role="alert"></p>
             <div class="btn-row">
               <button type="submit" id="btn-submit" class="btn primary big">Submit answer</button>
-              <button type="button" id="btn-timer-start" class="btn secondary big" hidden>Start timer</button>
             </div>
           </form>
         </div>
@@ -166,6 +169,7 @@
           <p id="reveal-status" class="status-note" hidden></p>
           <p id="reveal-given" class="muted"></p>
           <p id="reveal-expected"></p>
+          <p id="reveal-range" class="reveal-also muted" hidden></p>
           <ul id="reveal-images" class="image-list" hidden></ul>
           <p id="reveal-also" class="reveal-also muted" hidden></p>
           <div id="reveal-around" class="rank-around" hidden></div>

@@ -16,6 +16,9 @@
 //   imageItems(category, value) -> [{ name, image }] | null   famousPeople / dish / landmarks reveal list (image: path or null)
 //   alsoAccepted(category, country) -> string[]   landmarks only: the names of landmarksMore (accepted, shown as text, no photos)
 //   militaryNeighbours(countries, rank) -> [{ rank, iso3, iso2, name }]   rank-1, rank, rank+1 that exist
+//   formatRange(category, value) -> string | ''   Display mode: "Accepted range: 1,350 - 1,650 km²" (CR-20; numeric categories with a tolerance)
+
+import { acceptedRange } from './answer.js';
 
 /** Categories whose reveal lists every stored name with a picture; the value is the per-item data field. */
 const IMAGE_FIELD = { famousPeople: 'portrait', dish: 'photo', landmarks: 'photo', alcohol: 'photo' };
@@ -220,6 +223,20 @@ function formatNumberValue(category, value, ctx = {}) {
   if (category.id === 'gdpPerCapita') return `$${group(value)}`;
   const unit = category.unit ? ' ' + category.unit : '';
   return group(value) + unit;
+}
+
+/**
+ * Display mode reveal (CR-20, SCHEMA 4.24): "Accepted range: <low> - <high>" for the categories with a numeric
+ * tolerance, formatted like the shown answer (the unit once, at the end; $ before each gdpPerCapita figure; feet and inches for
+ * maleHeight; hours and minutes for flightTime). The bounds come from acceptedRange in answer.js, the same maths as the check.
+ * '' for every other category, militaryRank included (it shows its neighbours instead).
+ */
+export function formatRange(category, value) {
+  const r = acceptedRange(category, value);
+  if (!r) return '';
+  const one = { gdpPerCapita: (n) => `$${group(n)}`, maleHeight: formatHeight, flightTime: formatMinutes }[category.id] || group;
+  const tail = !['gdpPerCapita', 'maleHeight', 'flightTime'].includes(category.id) && category.unit ? ' ' + category.unit : '';
+  return `Accepted range: ${[r.low, r.high].map(one).join(' - ')}${tail}`;
 }
 
 /** "A", "A and B", "A, B and C" (for names in running text). */

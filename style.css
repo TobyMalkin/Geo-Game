@@ -227,8 +227,9 @@ input[type="text"]:focus-visible { outline: 3px solid var(--focus); outline-offs
   height: 100%;
 }
 
-.q-meta { color: var(--muted); font-weight: 600; margin-bottom: 0.5rem; }
-.q-meta strong { color: var(--text); }
+/* CR-21: the question's Country and Category use the CR-14 pill (.spin-category), one pill each, side by side, wrapping on narrow screens */
+.q-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin: 0 0 0.75rem; }
+.q-meta .spin-category { margin: 0; }
 
 .outline-box {
   background: #0d1017;

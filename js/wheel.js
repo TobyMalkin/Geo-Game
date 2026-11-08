@@ -1,7 +1,7 @@
 // Canvas spinner wheel. Pure ES module, no dependencies; importable in Node (no DOM access at import).
 //
 //   const wheel = createWheel(canvas, { colours });
-//   const item = await wheel.spin(items, { rng, durationMs });   // items: [{ id, label }]
+//   const item = await wheel.spin(items, { rng, durationMs, instant });   // items: [{ id, label }]; instant: land at once, no animation (SCHEMA 4.29)
 //
 // Geometry: the pointer is fixed at the top. The wheel has a rotation (radians, clockwise, as on a
 // canvas). Slice i covers local angles [i*s, (i+1)*s) with s = 2*PI/n, measured clockwise from the
@@ -430,7 +430,8 @@ export function createWheel(canvas, options = {}) {
       draw();
       return Promise.reject(new Error('No items to spin'));
     }
-    const reduced = prefersReducedMotion();
+    // reduced motion, or opts.instant (the "Skip the spin" game option, SCHEMA 4.29): same result and same rng, no animation
+    const reduced = prefersReducedMotion() || opts.instant === true;
     const duration = reduced ? REDUCED_DURATION_MS : opts.durationMs ?? DEFAULT_DURATION_MS;
     const plan = planSpin(items, rotation, opts.rng || Math.random);
     if (reduced) {

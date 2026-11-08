@@ -19,6 +19,7 @@ import {
   isGameOver, endReason, ranking, gameMode, validMode, applyDisplayResult, canContinue, MODE_TYPE, MODE_DISPLAY,
   PALETTE, colourOf, colourHex, randomColours, randomUnusedColour, changeColour, isColourTaken, fillColours,
   REGIONS, regionCounts, planGame, parseFilters, filtersOf, filterSummary, inScope, gameTimer, validTimer,
+  gameSkipSpin, validSkipSpin,
 } from './state.js';
 import { createTimer, milestoneMessage, timeUpAnswer } from './timer.js';
 import { createEmpireMap, framingView, FILTER_ALL, MAX_ZOOM, MIN_ZOOM, ZOOM_STEP } from './worldmap.js';
@@ -28,7 +29,7 @@ import { REPORT } from './report-config.js';
 import { isConfigured, buildPayload, sendReport } from './report.js';
 import {
   buildQuestion, questionLabel, formatExpected, listAnd, firstBlank, imageItems, alsoAccepted, militaryNeighbours, displayHint, displayPrompt, statusNote,
-  droppedNotice,
+  droppedNotice, formatRange,
 } from './questions.js';
 
 const SAVE_KEY = 'geogame.save.v1';
@@ -91,6 +92,7 @@ let setupColours = randomColours(2); // colour id per setup row, never shared (S
 let openPicker = null;               // index of the setup row whose colour picker is open
 let setupMode = MODE_TYPE; // the answer mode ticked on the setup screen; remembered between games
 let setupTimer = true;     // the answer timer box on the setup screen (SCHEMA 4.27); remembered between games
+let setupSkipSpin = false; // the "Skip the spin" box on the setup screen (SCHEMA 4.29); remembered between games
 let reportUi = { key: null, state: 'idle', message: '', error: false }; // "Report wrong answer" on the reveal (SCHEMA 4.28), one per reveal
 let timerKey = null;       // the question the answer timer belongs to (null = no timer is tied to a question)
 // The optional filters ticked on the setup screen (SCHEMA 4.26): a checkbox each, and the ticked items of its panel. Remembered
@@ -146,6 +148,8 @@ function parseSave(raw) {
     g.mode = gameMode(g); // a save from before CR-10 has no mode and loads as 'type'
     if (!validTimer(g.timer)) return null;
     g.timer = gameTimer(g); // a save from before CR-16 has no timer setting and loads with the timer on (SCHEMA 4.27)
+    if (!validSkipSpin(g.skipSpin)) return null;
+    g.skipSpin = gameSkipSpin(g); // a save from before CR-20 has none and spins normally (SCHEMA 4.29)
     if (!Array.isArray(g.players)) return null;
     // Filters (SCHEMA 4.26): a save from before CR-15 has none and plays the whole world with every category.
     const filters = parseFilters(g.filters, countries, Object.keys(catById));
@@ -327,6 +331,7 @@ function renderSetup(focusIndex = null, focusId = null, focusRadio = null) {
   $('mode-type').checked = setupMode !== MODE_DISPLAY;
   $('mode-display').checked = setupMode === MODE_DISPLAY;
   $('opt-timer').checked = setupTimer;
+  $('opt-skip').checked = setupSkipSpin;
   renderFilters();
   if (focusIndex !== null) focusSoon($(`player-name-${focusIndex}`));
   if (focusId) focusSoon($(focusId));
@@ -488,17 +493,18 @@ async function onSetupSubmit(e) {
     }
     if (!ok) { focusSoon($('btn-start')); return; }
   }
-  startGame(names, mode, setupColours.slice(), filters, $('opt-timer').checked);
+  startGame(names, mode, setupColours.slice(), filters, $('opt-timer').checked, $('opt-skip').checked);
 }
 
-function startGame(names, mode = MODE_TYPE, colours = undefined, filters = null, timer = true) {
+function startGame(names, mode = MODE_TYPE, colours = undefined, filters = null, timer = true, skipSpin = false) {
   gameToken++;
   stopTimer();
   clearTimerLive();
   lastNames = names.slice();
   setupMode = mode;
   setupTimer = timer !== false;
-  game = createGame(names, countries, categories, mode, colours, filters, setupTimer);
+  setupSkipSpin = skipSpin === true;
+  game = createGame(names, countries, categories, mode, colours, filters, setupTimer, setupSkipSpin);
   lastColours = game.players.map((p) => p.colour);
   turn = null;
   reveal = null;
@@ -534,6 +540,7 @@ function resumeSaved() {
     lastColours = game.players.map((p) => p.colour);
     setupMode = gameMode(game);
     setupTimer = gameTimer(game);
+    setupSkipSpin = gameSkipSpin(game);
     setSetupFromFilters(filtersOf(game));
     prefetchWorldMap();
   } catch (err) {
@@ -665,7 +672,8 @@ async function onSpin() {
   $('spin-status').textContent = 'Spinning...';
   $('spin-status').focus();
   $('btn-spin').disabled = true;
-  const opts = (items, kind) => ({ rng: rngFor(items, kind), durationMs: FAST ? 40 : undefined });
+  const skip = gameSkipSpin(game); // SCHEMA 4.29: the wheels land at once, same random pick, no animation and no landing pause
+  const opts = (items, kind) => ({ rng: rngFor(items, kind), durationMs: FAST ? 40 : undefined, instant: skip });
   try {
     if (st === 'category') {
       const items = categoryItems();
@@ -691,7 +699,7 @@ async function onSpin() {
       }
     }
     saveGame();
-    if (LANDING_PAUSE_MS) await wait(LANDING_PAUSE_MS);
+    if (LANDING_PAUSE_MS && !skip) await wait(LANDING_PAUSE_MS);
     if (token !== gameToken) return;
   } catch (err) {
     if (token !== gameToken) return; // wheel aborted (game abandoned): nothing to do
@@ -749,9 +757,13 @@ function renderQuestion(readOnly) {
   meta.replaceChildren();
   if (q.showCountry) {
     const c = countries[turn.iso3];
-    meta.append('Country: ', el('strong', { text: c.name }), ` · Category: ${q.label}`);
+    meta.append(
+      el('span', { class: 'spin-category' }, 'Country: ', el('strong', { text: c.name })),
+      el('span', { class: 'sr-only', text: ', ' }),
+      el('span', { class: 'spin-category' }, 'Category: ', el('strong', { text: q.label })),
+    );
   } else {
-    meta.append(`Category: ${q.label}`);
+    meta.append(el('span', { class: 'spin-category' }, 'Category: ', el('strong', { text: q.label })));
   }
   // CR-12: the status note under the country name (not on the outline question, where the country must stay hidden)
   const qStatus = $('q-status');
@@ -963,7 +975,11 @@ function renderReveal(focus) {
     $('reveal-images').hidden = true;
     $('reveal-images').replaceChildren();
   }
-  renderRankAround(cat);
+  // Display mode (CR-20, SCHEMA 4.24): the accepted range under the answer, for the numeric categories with a tolerance
+  const rangeEl = $('reveal-range');
+  rangeEl.textContent = display ? formatRange(cat, c[cat.id]) : '';
+  rangeEl.hidden = !rangeEl.textContent;
+  renderRankAround(cat, c);
   $('reveal-outcome').textContent = pending
     ? 'Choose Correct or Wrong to carry on.'
     : reveal.correct
@@ -1090,21 +1106,24 @@ function renderImageList(items, kind) {
   list.hidden = false;
 }
 
-// A wrong military rank: show the countries ranked around the number the player typed.
-function renderRankAround(cat) {
+// Military rank. Type mode, a wrong answer: the countries ranked around the number the player typed. Display mode (CR-20, SCHEMA 4.24):
+// the country's own place with the one above and below it, the country's own entry highlighted.
+function renderRankAround(cat, country) {
   const box = $('reveal-around');
   box.replaceChildren();
   box.hidden = true;
-  if (cat.id !== 'militaryRank' || reveal.correct || gameMode(game) === MODE_DISPLAY) return;
-  const rank = parseNumber(reveal.given[0], 'militaryRank');
-  if (rank === null) return;
+  if (cat.id !== 'militaryRank') return;
+  const display = gameMode(game) === MODE_DISPLAY;
+  if (!display && reveal.correct) return;
+  const rank = display ? country.militaryRank : parseNumber(reveal.given[0], 'militaryRank');
+  if (!Number.isInteger(rank)) return;
   const around = militaryNeighbours(countries, rank);
   if (!around.length) return;
   box.append(
-    el('p', { class: 'muted', text: `You said ${rank}:` }),
+    el('p', { class: 'muted', text: display ? `${country.name} is ${rank}:` : `You said ${rank}:` }),
     el('ul', {}, around.map((a) => el('li', { class: a.rank === rank ? 'at' : '' },
       `${a.rank} · `, a.name,
-      a.rank === rank ? el('span', { class: 'you', text: ' (your answer)' }) : ''))));
+      a.rank === rank && !display ? el('span', { class: 'you', text: ' (your answer)' }) : ''))));
   box.hidden = false;
 }
 
@@ -1178,7 +1197,6 @@ function stopTimer() {
   timerKey = null;
   $('q-timer').hidden = true;
   $('q-timer').classList.remove('urgent');
-  $('btn-timer-start').hidden = true;
   // #timer-live is not cleared here: "Time's up" is set just before the timer is stopped and must stay to be announced
 }
 
@@ -1193,27 +1211,15 @@ function clearTimerLive() {
   $('timer-live').textContent = '';
 }
 
-// Called whenever a screen is drawn. Type mode: the countdown starts by itself the first time a question is on screen.
-// Display mode: a Start timer button, and the countdown once it is pressed. Nothing at all with the timer off.
+// Called whenever a screen is drawn. In both modes the countdown starts by itself the first time a question is on screen
+// (CR-20: Display mode no longer has a Start timer button). Nothing at all with the timer off.
 function syncTimer(st) {
   if (!game || !gameTimer(game) || st !== 'question') { stopTimer(); return; }
   const key = `${gameToken}:${turn.categoryId}:${turn.iso3}`;
   const fresh = timerKey !== key;
   if (fresh) { stopTimer(); timerKey = key; }
-  if (gameMode(game) === MODE_DISPLAY) {
-    $('btn-timer-start').hidden = qTimer.running;
-    $('q-timer').hidden = !qTimer.running;
-  } else {
-    $('q-timer').hidden = false;
-    if (fresh) startTimer();
-  }
-}
-
-function onTimerStart() {
-  if (!game || stage() !== 'question' || gameMode(game) !== MODE_DISPLAY || !gameTimer(game) || qTimer.running) return;
-  startTimer();
-  syncTimer('question');
-  $('btn-submit').focus(); // the Start timer button has just turned into the countdown
+  $('q-timer').hidden = false;
+  if (fresh) startTimer();
 }
 
 function onTimerExpire() {
@@ -1527,8 +1533,8 @@ async function init() {
   });
   $('btn-spin').addEventListener('click', onSpin);
   $('answer-form').addEventListener('submit', onAnswerSubmit);
-  $('btn-timer-start').addEventListener('click', onTimerStart);
   $('opt-timer').addEventListener('change', () => { setupTimer = $('opt-timer').checked; });
+  $('opt-skip').addEventListener('change', () => { setupSkipSpin = $('opt-skip').checked; });
   // a background tab may throttle the poll: look at the real time as soon as the tab is back
   document.addEventListener('visibilitychange', () => qTimer.check());
   $('btn-continue').addEventListener('click', onContinue);
@@ -1552,7 +1558,7 @@ async function init() {
   $('btn-results-new').addEventListener('click', onNewGame);
   $('btn-play-again').addEventListener('click', () => {
     const f = filtersOf(game); // the same regions and categories again
-    startGame(game.players.map((p) => p.name), gameMode(game), game.players.map((p) => p.colour), { regions: f.regions, categories: f.categories }, gameTimer(game));
+    startGame(game.players.map((p) => p.name), gameMode(game), game.players.map((p) => p.colour), { regions: f.regions, categories: f.categories }, gameTimer(game), gameSkipSpin(game));
   });
 
   goToSetup();

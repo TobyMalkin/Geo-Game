@@ -405,23 +405,56 @@ function expectedNumber(category, value) {
 const result = (status, expected, parsed) =>
   parsed === undefined ? { status, expected } : { status, expected, parsed };
 
+/**
+ * The accepted interval of a numeric category for the stored value: { low, high }, both inclusive and exact (not rounded, not
+ * clamped). The one place the tolerance maths lives: checkNumber uses it for the verdict and acceptedRange for the Display mode
+ * reveal (CR-20, SCHEMA 4.24), so the two can never disagree.
+ *  - number-pct: tolerance * |value|, at least absFloor;  number-abs: tolerance.
+ *  - maleHeight (SCHEMA 4.1, 1.8): the reveal shows the value rounded to a whole inch, so a guess within the tolerance of that
+ *    shown value is right too: the interval is the union of both, which overlap.
+ */
+export function acceptedBounds(category, value) {
+  const allowed = category.type === 'number-pct'
+    ? Math.max(category.tolerance * Math.abs(value), category.absFloor ?? 0)
+    : category.tolerance;
+  let low = value - allowed;
+  let high = value + allowed;
+  if (category.id === 'maleHeight') {
+    const shown = Math.round(value);
+    low = Math.min(low, shown - allowed);
+    high = Math.max(high, shown + allowed);
+  }
+  return { low, high };
+}
+
+/**
+ * The accepted range as the Display mode reveal shows it (CR-20, SCHEMA 4.24): { low, value, high }, or null for a category
+ * without a numeric tolerance (militaryRank has one but is shown as neighbours, so it returns null too). The bounds come from
+ * acceptedBounds, are clamped at 0 and rounded inward (low up, high down) so every shown bound is itself accepted:
+ * whole units for flightTime, maleHeight (inches) and any value of 100 or more, otherwise two decimals. value is the stored
+ * value, as the answer line shows it (maleHeight: rounded to a whole inch).
+ */
+export function acceptedRange(category, value) {
+  if (!category || (category.type !== 'number-pct' && category.type !== 'number-abs')) return null;
+  if (category.id === 'militaryRank' || typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const { low, high } = acceptedBounds(category, value);
+  const wholeUnits = category.id === 'flightTime' || category.id === 'maleHeight' || (category.type === 'number-pct' && Math.abs(value) >= 100);
+  const f = wholeUnits ? 1 : 100;
+  // toFixed(6) first: 70.4 - 2 style float noise must not push a bound over a rounding edge
+  const lo = Math.ceil(Number((low * f).toFixed(6))) / f;
+  const hi = Math.floor(Number((high * f).toFixed(6))) / f;
+  return { low: Math.max(0, lo), value: category.id === 'maleHeight' ? Math.round(value) : value, high: hi };
+}
+
 function checkNumber(category, value, input) {
   const expected = expectedNumber(category, value);
   const text = Array.isArray(input) ? input[0] : input;
   const guess = parseNumber(text, category.id);
   if (guess === null) return result('invalid', expected);
-  let allowed;
-  if (category.type === 'number-pct') {
-    allowed = Math.max(category.tolerance * Math.abs(value), category.absFloor ?? 0);
-  } else {
-    allowed = category.tolerance;
-  }
+  const { low, high } = acceptedBounds(category, value);
   // tiny slack so floating-point noise never turns an inclusive boundary into a miss
   const slack = 1e-9 * Math.max(1, Math.abs(value));
-  let ok = Math.abs(guess - value) <= allowed + slack;
-  // maleHeight (SCHEMA 4.1, 1.8): the reveal shows the value rounded to a whole inch, so a guess within the
-  // tolerance of that shown value is right too. The shown answer and the check then always agree.
-  if (!ok && category.id === 'maleHeight') ok = Math.abs(guess - Math.round(value)) <= allowed + slack;
+  const ok = guess >= low - slack && guess <= high + slack;
   return result(ok ? 'correct' : 'wrong', expected, guess);
 }
 

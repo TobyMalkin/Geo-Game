@@ -16,6 +16,7 @@
 //                        // categories = the categories every player starts with (null = all of them), dropped = chosen
 //                        // categories that had no data for the pool and were left out; a state without it has no filters
 //     timer: boolean,    // the 60-second answer timer (SCHEMA 4.27, CR-16), default true; a state without it has the timer on
+//     skipSpin: boolean, // both wheels land at once with no animation (SCHEMA 4.29, CR-20), default false; a state without it is false
 //     countries: object        // the countries.json object, shared by reference, treated as read-only
 //   }
 //
@@ -48,6 +49,16 @@ export function gameTimer(state) {
 /** True when a saved timer value is usable: absent (an old save, loads as on) or a boolean. */
 export function validTimer(timer) {
   return timer === undefined || typeof timer === 'boolean';
+}
+
+/** True when the game skips the wheel animation (SCHEMA 4.29): only when the state says `skipSpin: true` (old saves have none, so off). */
+export function gameSkipSpin(state) {
+  return !!state && state.skipSpin === true;
+}
+
+/** True when a saved skipSpin value is usable: absent (loads as off) or a boolean. */
+export function validSkipSpin(skipSpin) {
+  return skipSpin === undefined || typeof skipSpin === 'boolean';
 }
 
 // ---------------------------------------------------------------------------
@@ -274,8 +285,9 @@ function withPlayers(state, players, extra = {}) {
  *   the chosen regions and every player starts with the chosen categories that have data for that pool (see planGame); throws
  *   when the choice is empty or leaves no category
  * @param {boolean} [timer] the answer timer (SCHEMA 4.27), on unless false
+ * @param {boolean} [skipSpin] both wheels land with no animation (SCHEMA 4.29), off unless true
  */
-export function createGame(playerNames, countries, categories, mode = MODE_TYPE, colours = undefined, filters = null, timer = true) {
+export function createGame(playerNames, countries, categories, mode = MODE_TYPE, colours = undefined, filters = null, timer = true, skipSpin = false) {
   if (!Array.isArray(playerNames) || playerNames.length < 1) {
     throw new Error('createGame needs at least one player');
   }
@@ -300,6 +312,7 @@ export function createGame(playerNames, countries, categories, mode = MODE_TYPE,
     mode: mode === MODE_DISPLAY ? MODE_DISPLAY : MODE_TYPE,
     filters: plan.filters,
     timer: timer !== false,
+    skipSpin: skipSpin === true,
     countries,
   };
   return finalize(state);
